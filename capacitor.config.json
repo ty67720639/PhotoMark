@@ -1,0 +1,27 @@
+{
+  "appId": "com.djishuiyin.watermark",
+  "appName": "PhotoMark",
+  "webDir": "www",
+  "bundledWebRuntime": false,
+  "android": {
+    "allowMixedContent": true,
+    "backgroundColor": "#F8F7F4"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1500,
+      "backgroundColor": "#F8F7F4",
+      "androidSplashResourceName": "splash",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "style": "LIGHT",
+      "backgroundColor": "#F8F7F4",
+      "overlaysWebView": false
+    }
+  },
+  "server": {
+    "androidScheme": "https",
+    "allowNavigation": ["*"]
+  }
+}

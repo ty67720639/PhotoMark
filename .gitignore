@@ -1,0 +1,15 @@
+node_modules/
+.build/
+.uploads/
+.gradle/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+ios/App/build/
+ios/App/App/public/.DS_Store
+*.apk
+*.ipa
+.DS_Store
+.DS_Store?
+Thumbs.db

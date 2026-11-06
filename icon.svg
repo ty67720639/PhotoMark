@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2B6B5E"/>
+      <stop offset="100%" stop-color="#1F5147"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="220" fill="url(#bg)"/>
+  <!-- Camera body -->
+  <rect x="200" y="320" width="624" height="384" rx="48" fill="none" stroke="#FFFFFF" stroke-width="32"/>
+  <!-- Lens outer ring -->
+  <circle cx="512" cy="512" r="170" fill="none" stroke="#FFFFFF" stroke-width="32"/>
+  <!-- Lens inner -->
+  <circle cx="512" cy="512" r="108" fill="#FFFFFF" opacity="0.9"/>
+  <!-- Lens highlight -->
+  <circle cx="472" cy="472" r="44" fill="#2B6B5E"/>
+  <!-- Shutter button -->
+  <rect x="640" y="248" width="120" height="60" rx="30" fill="#FFFFFF" opacity="0.35"/>
+  <circle cx="700" cy="278" r="20" fill="#FFFFFF"/>
+  <!-- Watermark dot -->
+  <circle cx="780" cy="760" r="48" fill="#F1E9C6"/>
+</svg>

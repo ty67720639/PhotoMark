@@ -1,0 +1,3454 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>照片水印 · EXIF 信息水印工具</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="照片水印">
+<meta name="theme-color" content="#0d1117">
+<meta name="description" content="导入照片读取 EXIF 信息，一键生成可自定义的水印，支持高德/百度/腾讯逆地理编码地址。">
+<style>
+:root{
+  --bg:#0d1117; --bg2:#161b22; --bg3:#1c2430; --line:#2a3441;
+  --fg:#e6edf3; --fg2:#9aa7b4; --accent:#3072EE; --accent2:#4d8bf5;
+  --ok:#2ea043; --warn:#d29922; --err:#f85149; --radius:12px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg);color:var(--fg);
+  font:14px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+  padding-bottom:env(safe-area-inset-bottom);
+}
+a{color:var(--accent2)}
+header.app{
+  position:sticky;top:0;z-index:50;background:rgba(13,17,23,.92);
+  backdrop-filter:saturate(180%) blur(12px);border-bottom:1px solid var(--line);
+  padding:12px 16px;display:flex;align-items:center;gap:10px;
+}
+header.app .logo{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--accent),#7aa7ff);
+  display:grid;place-items:center;flex:none;box-shadow:0 4px 14px rgba(48,114,238,.35)}
+header.app h1{font-size:16px;margin:0;font-weight:650;letter-spacing:.3px}
+header.app p{margin:0;font-size:11px;color:var(--fg2)}
+main{max-width:1240px;margin:0 auto;padding:16px;display:grid;gap:16px;grid-template-columns:1fr}
+@media(min-width:980px){main{grid-template-columns:minmax(0,1.15fr) minmax(360px,.85fr);align-items:start}}
+.card{background:var(--bg2);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.card>h2{margin:0;font-size:13px;font-weight:600;color:var(--fg2);letter-spacing:.5px;
+  padding:11px 14px;border-bottom:1px solid var(--line);background:var(--bg3);display:flex;align-items:center;gap:8px}
+.card>h2 .tag{margin-left:auto;font-size:11px;color:var(--fg2);font-weight:400}
+.card .body{padding:14px}
+#drop{
+  border:1.5px dashed #3b4756;border-radius:var(--radius);padding:26px 14px;text-align:center;
+  background:linear-gradient(180deg,rgba(48,114,238,.06),transparent);transition:.15s;cursor:pointer;
+}
+#drop.hot{border-color:var(--accent);background:rgba(48,114,238,.12)}
+#drop .big{font-size:15px;font-weight:600;margin-bottom:4px}
+#drop .small{font-size:12px;color:var(--fg2)}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line);
+  background:var(--bg3);color:var(--fg);padding:9px 14px;border-radius:9px;font-size:13px;cursor:pointer;
+  font-family:inherit;transition:.15s;
+}
+.btn:hover{border-color:#3d4b5c;background:#212b38}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.btn.primary:hover{background:var(--accent2)}
+.btn.ghost{background:transparent}
+.btn.sm{padding:5px 10px;font-size:12px;border-radius:7px}
+.btn[disabled]{opacity:.45;pointer-events:none}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.grow{flex:1}
+.muted{color:var(--fg2)}
+.hint{font-size:11.5px;color:var(--fg2);line-height:1.55}
+.canvasWrap{position:relative}
+.pnav{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:999px;background:rgba(13,18,25,.84);border:1px solid rgba(255,255,255,.12);box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:9;backdrop-filter:blur(8px)}
+.pnav.hide{display:none}
+body.navHide .pnav{display:none}
+.pnBtn{width:34px;height:34px;border-radius:50%;border:0;background:rgba(255,255,255,.12);color:#fff;font-size:19px;line-height:30px;text-align:center;cursor:pointer;font-family:inherit;padding:0;transition:background .15s}
+.pnBtn:hover{background:rgba(255,255,255,.22)}
+.pnBtn:active{background:#3072EE}
+.pnBtn:disabled{opacity:.3;cursor:default}
+.pnTxt{font-size:12.5px;color:#dfe8f3;min-width:54px;text-align:center;font-variant-numeric:tabular-nums;letter-spacing:.3px}
+.keyStatus{display:none;margin-top:10px;padding:9px 11px;border-radius:9px;font-size:12.5px;line-height:1.5;word-break:break-all;background:rgba(255,255,255,.06);color:#cfe0f2}
+.keyStatus.ok{background:rgba(48,190,120,.16);color:#7fe0ad}
+.keyStatus.err{background:rgba(255,90,90,.16);color:#ff9f9f}
+.keyStatus.info{background:rgba(48,114,238,.16);color:#9dc0ff}
+/* ===== 老内核兜底：MIUI / 旧 WebView 不支持 flex 的 gap，改用外边距 ===== */
+.row{gap:0} .row>*+*{margin-left:8px}
+.pnav{gap:0} .pnav>*+*{margin-left:10px}
+.strip{gap:0} .strip>*+*{margin-left:8px}
+.pillrow{gap:0} .pillrow>*+*{margin-left:6px}
+.swatches{gap:0} .swatches>*+*{margin-left:6px}
+.tabs{gap:0} .tabs>*+*{margin-left:4px}
+.topBar{gap:0} .topBar>*+*{margin-left:10px}
+.tbInfo{gap:0} .tbInfo>*+*{margin-left:8px}
+.dLive{gap:0} .dLive>*+*{margin-left:4px}
+.nudge{gap:0} .nudge>*+*{margin-left:6px}
+.mList{gap:0} .mList>*+*{margin-top:8px}
+.mrow{gap:0} .mrow>*+*{margin-left:10px}
+.saveActs{gap:0} .saveActs>*+*{margin-left:10px}
+.chk{gap:0} .chk>*+*{margin-left:8px}
+.f{gap:0} .f>*+*{margin-left:8px}
+label.f.inline{gap:0} label.f.inline>*+*{margin-left:8px}
+.dHead{gap:0} .dHead>*+*{margin-left:8px}
+/* 汉堡图标：三条线必须各自占位，不能靠 gap */
+.menuBtn{gap:0}
+.menuBtn span{flex:0 0 2px;min-height:2px;height:2px}
+.menuBtn span+span{margin-top:4px}
+.strip{display:flex;gap:8px;overflow-x:auto;padding:10px 2px 4px}
+.thumb{flex:none;width:74px;cursor:pointer;border-radius:9px;overflow:hidden;border:2px solid transparent;position:relative;background:#000}
+.thumb.sel{border-color:var(--accent)}
+.thumb img{width:100%;height:74px;object-fit:cover;display:block}
+.thumb .n{position:absolute;left:3px;top:3px;background:rgba(0,0,0,.6);color:#fff;border-radius:4px;font-size:10px;padding:0 4px}
+.thumb .gps{position:absolute;right:3px;top:3px;background:rgba(46,160,67,.9);color:#fff;border-radius:4px;font-size:10px;padding:0 4px}
+.preview{background:#0a0e13;border-radius:10px;overflow:hidden;display:grid;place-items:center;min-height:220px;position:relative}
+.preview canvas{max-width:100%;max-height:60vh;display:block}
+.preview .ph{color:var(--fg2);font-size:13px;padding:40px 16px;text-align:center}
+.exif{font-size:12px;color:var(--fg2);display:grid;grid-template-columns:auto 1fr;gap:2px 10px;margin-top:10px}
+.exif b{color:var(--fg);font-weight:500;font-variant-numeric:tabular-nums}
+details{border-top:1px solid var(--line)}
+details:first-of-type{border-top:none}
+details>summary{list-style:none;cursor:pointer;padding:11px 14px;font-size:13px;font-weight:600;color:var(--fg);
+  display:flex;align-items:center;gap:8px;user-select:none}
+details>summary::-webkit-details-marker{display:none}
+details>summary::before{content:"▸";color:var(--fg2);font-size:11px;transition:.15s;display:inline-block}
+details[open]>summary::before{transform:rotate(90deg)}
+details>summary .tag{margin-left:auto;font-size:11px;color:var(--fg2);font-weight:400}
+details>.body{padding:0 14px 14px}
+label.f{display:block;margin:10px 0 4px;font-size:12px;color:var(--fg2)}
+label.f.inline{display:flex;align-items:center;gap:8px;margin:8px 0;font-size:13px;color:var(--fg)}
+input[type=text],input[type=number],input[type=password],select,textarea{
+  width:100%;background:#0f151d;border:1px solid var(--line);color:var(--fg);border-radius:8px;
+  padding:8px 10px;font-size:13px;font-family:inherit;
+}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent)}
+input[type=color]{width:100%;height:34px;padding:2px;background:#0f151d;border:1px solid var(--line);border-radius:8px}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.chk{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--fg2);margin:6px 0}
+.chk input{accent-color:var(--accent);width:15px;height:15px}
+.chk.checked{color:var(--fg)}
+.fieldrow{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center;margin:8px 0;
+  padding:8px;border:1px solid var(--line);border-radius:9px;background:#111820}
+.fieldrow .nm{font-size:12.5px;font-weight:600}
+.fieldrow .sm{font-size:11px;color:var(--fg2);font-weight:400;margin-top:1px}
+.fieldrow .on{accent-color:var(--accent);width:16px;height:16px}
+.pillrow{display:flex;gap:6px;flex-wrap:wrap}
+.pill{border:1px solid var(--line);background:#111820;color:var(--fg2);padding:6px 11px;border-radius:999px;
+  font-size:12px;cursor:pointer;font-family:inherit}
+.pill.on{background:rgba(48,114,238,.16);border-color:var(--accent);color:#cfe0ff}
+.swatches{display:flex;gap:6px;flex-wrap:wrap}
+.sw{width:26px;height:26px;border-radius:7px;border:2px solid transparent;cursor:pointer}
+.sw.on{border-color:#fff}
+.msg{padding:9px 11px;border-radius:9px;font-size:12px;margin:8px 0;line-height:1.5}
+.msg.ok{background:rgba(46,160,67,.12);border:1px solid rgba(46,160,67,.4);color:#7ee787}
+.msg.err{background:rgba(248,81,73,.12);border:1px solid rgba(248,81,73,.4);color:#ff9492}
+.msg.warn{background:rgba(210,153,34,.12);border:1px solid rgba(210,153,34,.4);color:#e3b341}
+.msg.info{background:rgba(48,114,238,.12);border:1px solid rgba(48,114,238,.4);color:#a8c7ff}
+.kv{font-size:12px;color:var(--fg2);display:flex;justify-content:space-between;gap:10px;padding:3px 0}
+.kv b{color:var(--fg);font-weight:500;text-align:right;word-break:break-all}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);padding:0 8px}
+.tab{padding:10px 12px;font-size:13px;color:var(--fg2);cursor:pointer;border-bottom:2px solid transparent}
+.tab.on{color:var(--fg);border-bottom-color:var(--accent)}
+footer{color:var(--fg2);font-size:11.5px;text-align:center;padding:20px 16px 40px;line-height:1.7}
+.badge{display:inline-block;padding:1px 7px;border-radius:20px;font-size:11px;border:1px solid var(--line);color:var(--fg2)}
+.badge.on{border-color:var(--accent);color:#cfe0ff;background:rgba(48,114,238,.12)}
+.spin{display:inline-block;width:12px;height:12px;border:2px solid var(--line);border-top-color:var(--accent);
+  border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* ---- 九宫格位置选择 ---- */
+.posgrid{display:grid;grid-template-columns:repeat(3,40px);gap:6px;justify-content:start}
+.pos{position:relative;width:40px;height:34px;border-radius:8px;border:1px solid var(--line);background:var(--bg2);cursor:pointer;padding:0}
+.pos:hover{border-color:var(--accent)}
+.pos.on{border-color:var(--accent);background:rgba(48,114,238,.16)}
+.pos .p{position:absolute;width:13px;height:9px;border:1.5px solid var(--fg2);border-radius:2px;background:var(--bg)}
+.pos.on .p{border-color:var(--accent);background:var(--accent)}
+.p-tl{left:5px;top:5px}
+.p-tc{left:50%;transform:translateX(-50%);top:5px}
+.p-tr{right:5px;top:5px}
+.p-ml{left:5px;top:50%;transform:translateY(-50%)}
+.p-mc{left:50%;top:50%;transform:translate(-50%,-50%)}
+.p-mr{right:5px;top:50%;transform:translateY(-50%)}
+.p-bl{left:5px;bottom:5px}
+.p-bc{left:50%;bottom:5px;transform:translateX(-50%)}
+.p-br{right:5px;bottom:5px}
+.hidden{display:none!important}
+
+/* ============ 全屏画布 + 左侧抽屉菜单 ============ */
+header.app,footer{display:none}
+html,body{height:100%}
+body{overflow:hidden;padding:0;background:#05070a}
+main{display:block;max-width:none;margin:0;padding:0}
+
+/* --- 画布：整屏只留照片 --- */
+body.sheetOpen #stageCard{height:calc(100vh - var(--sheetH,0px));height:calc(100dvh - var(--sheetH,0px))}
+#stageCard{position:fixed;inset:0;top:var(--vvt,0px);height:var(--vvh,100dvh);z-index:10;margin:0;border:0;border-radius:0;background:#05070a;display:flex;flex-direction:column;box-shadow:none;padding-top:env(safe-area-inset-top,0px);transition:height .24s cubic-bezier(.4,0,.2,1);overflow:hidden}
+#stageCard>h2{display:none}
+#stageCard>.body{flex:1;min-height:0;display:flex;flex-direction:column;padding:0}
+.canvasWrap{position:relative;flex:1;min-height:0;display:flex;align-items:stretch;justify-content:center;padding:8px;overflow:hidden}
+#stageCard .preview{flex:1;min-height:0;height:100%;width:100%;background:transparent;border-radius:0;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:8px;box-sizing:border-box}
+#stageCard .preview canvas{flex:0 0 auto;margin:auto;max-width:100%;max-height:100%;display:block;border-radius:4px}
+.preview .ph{color:#74808f;font-size:16px;letter-spacing:1px;padding:0;text-align:center}
+.menuBtn{position:static;flex:0 0 auto;width:40px;height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(18,24,32,.78);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:4px;cursor:pointer;padding:0}
+.menuBtn span{display:block;width:18px;height:2px;border-radius:2px;background:#e8eefb}
+.canvasTag{position:static;font-size:12px;color:#cfd8e6;background:rgba(18,24,32,.78);border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:5px 10px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:52%}
+
+/* --- 抽屉 --- */
+#drawerMask{display:none}
+#drawerMask.on{display:none}
+#sheetCard{position:fixed;left:0;right:0;bottom:0;top:auto;width:100%;max-width:none;height:20vh;max-height:20vh;z-index:80;margin:0;border:0;border-radius:18px 18px 0 0;background:var(--bg2);transform:translateY(103%);transition:transform .26s cubic-bezier(.4,0,.2,1),height .24s;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 -12px 34px rgba(0,0,0,.55);padding-bottom:env(safe-area-inset-bottom,0px)}
+#sheetCard.open{transform:translateX(0)}
+#sheetCard>h2,#sheetCard>.tabs,#sheetCard>.grab{display:none}
+.dHead{display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid var(--line);flex:0 0 auto}
+.dHead span{flex:0 1 auto;font-size:15px;font-weight:650;letter-spacing:.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dClose{background:none;border:0;color:var(--fg2);font-size:24px;line-height:1;cursor:pointer;padding:0 2px;flex:0 0 auto}
+#drawerMenu{position:absolute;top:47px;left:0;right:0;bottom:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:8px 13px 26px}
+.dItem{display:block;width:100%;background:none;border:0;border-bottom:1px solid rgba(255,255,255,.055);padding:15px 40px 15px 16px;color:var(--fg);text-align:left;cursor:pointer;position:relative;font-family:inherit}
+.dItem:active{background:rgba(48,114,238,.14)}
+.dItem b{display:block;font-size:14.5px;font-weight:600}
+.dItem i{display:block;font-size:11.5px;color:var(--fg2);font-style:normal;margin-top:3px}
+.dItem em{position:absolute;right:15px;top:50%;transform:translateY(-50%);color:var(--fg2);font-style:normal;font-size:19px}
+#drawerView{position:absolute;top:47px;left:0;right:0;bottom:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:8px 13px 26px;display:none}
+#sheetCard.viewing #drawerMenu{display:none}
+#sheetCard.viewing #drawerView{display:block}
+.dView{display:none}
+.dView.active{display:block;animation:viewIn .2s ease}
+@keyframes viewIn{from{opacity:0;transform:translateX(-18px)}to{opacity:1;transform:none}}
+.dBack{margin-bottom:10px}
+#vExport .btn,#vImport .btn{margin-top:8px}
+#vExport .btn.primary{width:100%}
+.toastBox{position:fixed;left:12px;right:12px;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:130;pointer-events:none}
+#mapMsg{font-size:12px}
+#stageCard .hidden{display:none!important}
+.quickSave{position:fixed;right:16px;bottom:calc(74px + env(safe-area-inset-bottom,0px));z-index:30;padding:0 18px;height:46px;border:0;border-radius:23px;background:#3072EE;color:#fff;font-size:15px;font-weight:600;box-shadow:0 6px 18px rgba(48,114,238,.45);font-family:inherit}
+.quickSave:active{transform:scale(.97)}
+body.sheetOpen .quickSave{bottom:calc(var(--sheetH,20vh) + 14px + env(safe-area-inset-bottom,0px))}
+.quickSave:disabled{opacity:.55}
+.saveWarn{font-size:12.5px;color:#ffb020;line-height:1.6;margin-top:8px;background:rgba(255,176,32,.1);border:1px solid rgba(255,176,32,.35);border-radius:8px;padding:8px 10px}
+.saveTip{font-size:13px;color:var(--fg);line-height:1.7;margin-bottom:10px}
+.savePic{background:#000;border-radius:10px;overflow:hidden;display:flex;align-items:center;justify-content:center;max-height:46vh}
+.savePic img{max-width:100%;max-height:46vh;display:block}
+.saveMeta{font-size:12px;color:var(--fg2);margin-top:8px}
+.saveName{font-size:12px;color:var(--fg2);margin-top:2px;word-break:break-all}
+.saveActs{display:flex;gap:10px;margin-top:14px}
+.saveActs .btn{flex:1}
+.saveActs .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--fg)}
+
+/* --- 底部设置面板：边调边看 --- */
+#sheetCard.open{transform:translateY(0)}
+#sheetCard.tall{height:88vh;max-height:88vh}
+#sheetGrip{flex:0 0 auto;height:22px;display:flex;align-items:center;justify-content:center;cursor:grab;touch-action:none;position:relative;z-index:3;background:transparent}
+#sheetGrip span{width:44px;height:4px;border-radius:2px;background:rgba(255,255,255,.26)}
+#sheetGrip:active span{background:rgba(255,255,255,.55)}
+body.resizing #sheetCard,body.resizing #stageCard{transition:none!important}
+body.resizing{-webkit-user-select:none;user-select:none}
+#sheetCard.peek{height:52px;max-height:52px}
+.topBar{display:flex;align-items:center;gap:10px;padding:8px 12px 4px;flex:0 0 auto;min-height:52px;box-sizing:border-box}
+.menuBtn span{display:block;width:16px;height:2px;border-radius:2px;background:#cfd8e6}
+.tbInfo{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
+.tbInfo b{font-size:14.5px;font-weight:650;color:#e6edf3;white-space:nowrap}
+.dLive{display:none;align-items:center;gap:4px;font-size:11px;color:#2ea043;font-weight:600;flex:0 0 auto}
+body.liveOn .dLive{display:inline-flex}
+.dLive i{width:6px;height:6px;border-radius:50%;background:#2ea043}
+#liveInfo{font-size:11px;color:#8b98a6;flex:1;min-width:0;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+#sheetPeek{background:none;border:1px solid var(--line);border-radius:8px;color:var(--fg2);font-size:13px;padding:3px 8px;flex:0 0 auto;cursor:pointer}
+.tabpane{position:static;padding:2px 2px 26px}
+.nudge{display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap}
+.nudge button{width:40px;height:36px;border-radius:10px;border:1px solid var(--line);background:var(--bg3);color:var(--fg);font-size:15px;cursor:pointer;font-family:inherit}
+.nudge button:active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.nudge button.wide{width:auto;padding:0 12px;font-size:12.5px}
+/* --- 导出尺寸弹窗 --- */
+.modalMask{position:fixed;inset:0;background:rgba(0,0,0,.62);z-index:140;display:none;align-items:center;justify-content:center;padding:18px}
+.modalMask.on{display:flex}
+.modalBox{width:100%;max-width:410px;background:var(--bg2);border:1px solid var(--line);border-radius:16px;display:flex;flex-direction:column;max-height:86vh;overflow:hidden;box-shadow:0 18px 50px rgba(0,0,0,.6)}
+.mHead{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line);font-size:15px;font-weight:650}
+.mBody{padding:14px 16px 18px;overflow-y:auto}
+.mInfo{font-size:12.5px;color:var(--fg2);margin-bottom:12px;line-height:1.7}
+.mList{display:flex;flex-direction:column;gap:8px}
+.mOpt{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.035);color:var(--fg);font-size:14px;font-family:inherit;cursor:pointer;text-align:left}
+.mOpt:active{background:rgba(48,114,238,.2)}
+.mOpt b{font-weight:600;font-size:14px;display:inline}
+.mOpt small{color:var(--fg2);font-size:11.5px;display:inline}
+.mOpt .mo{color:var(--fg2);font-size:15px;flex:0 0 auto}
+.mOpt .mrow{display:flex;align-items:center;gap:10px;min-width:0}
+.mThumb{width:42px;height:42px;object-fit:cover;border-radius:8px;border:1px solid var(--line);flex:0 0 auto}
+.mOpt.bad{border-color:#7a2b28;background:rgba(248,81,73,.08)}
+.mOpt.bad b,.mOpt.bad small{color:#f0a6a2}
+.mOpt.ok{border-color:#285b3a;background:rgba(46,160,67,.1)}
+.mOpt.ok b{color:#8fe0a5}
+.mExif{margin:12px 0 0;font-size:12.5px}
+.mHint{font-size:11.5px;color:var(--fg2);margin-top:14px;line-height:1.7}
+</style>
+
+<style>
+/* ================= 桌面版布局（左侧设置栏 + 右侧大画布） ================= */
+html{height:100%}
+body{height:100%;overflow:hidden;background:#0b0f14;margin:0!important;padding:0!important}
+main{display:grid!important;grid-template-columns:minmax(380px,430px) 1fr;grid-template-rows:100%;height:100vh!important;max-width:none!important;margin:0!important;padding:0!important;overflow:hidden;gap:0;box-sizing:border-box}
+body.sidebarHidden main{grid-template-columns:0 1fr}
+header.app,footer{display:none!important}
+
+/* ---- 左侧设置栏 ---- */
+#sheetCard{position:relative!important;inset:auto!important;grid-column:1;grid-row:1;width:auto!important;max-width:none!important;height:100vh!important;max-height:none!important;transform:none!important;border-radius:0!important;border:0!important;border-right:1px solid #1c2430!important;background:#0f151d!important;box-shadow:none!important;display:flex!important;flex-direction:column;overflow:hidden;padding:0!important;z-index:5}
+.dHead{padding:16px 18px!important;border-bottom:1px solid #1c2430!important;gap:10px}
+.dHead span{font-size:15px!important}
+#sheetPeek,.dClose{display:none!important}
+#liveInfo{font-size:11.5px}
+body:not(.liveOn) #liveInfo{display:none}
+#drawerMenu{display:none!important}
+.dtabs{display:flex;flex-wrap:wrap;gap:5px;padding:11px 12px;border-bottom:1px solid #1c2430;background:#0d131b}
+.dtabs button{flex:0 0 auto;padding:6px 11px;border-radius:8px;border:1px solid #223041;background:#131b25;color:#9fb0c3;font-size:12.5px;cursor:pointer;font-family:inherit;transition:background .15s,color .15s,border-color .15s}
+.dtabs button:hover{border-color:#2f6fe4;color:#dbe7f5}
+.dtabs button.on{background:#2f6fe4;border-color:#2f6fe4;color:#fff}
+#drawerView{position:relative!important;inset:auto!important;flex:1;min-height:0;overflow-y:auto!important;padding:14px 16px 48px!important;display:none}
+#sheetCard.viewing #drawerView{display:block}
+#drawerView .dBack{display:none!important}
+#sheetCard .hint,#sheetCard .f{font-size:12.5px}
+
+/* ---- 右侧画布 ---- */
+#stageCard{position:relative!important;inset:auto!important;grid-column:2;grid-row:1;height:100vh!important;width:auto!important;display:flex!important;flex-direction:column;background:#0b0f14!important;overflow:hidden;padding:0!important;box-shadow:none!important}
+body.sheetOpen #stageCard{height:100vh!important}
+.topBar{padding:12px 20px!important;min-height:60px;gap:12px;background:#0f151d;border-bottom:1px solid #1c2430}
+.menuBtn{width:38px;height:38px;border-radius:10px}
+.tbInfo b{font-size:15px}
+.canvasTag{max-width:none!important;font-size:12.5px;padding:6px 12px}
+.dtools{display:flex;gap:8px;align-items:center;flex:0 0 auto;margin-left:auto}
+.dtools .db{padding:9px 15px;border-radius:9px;border:1px solid #223041;background:#131b25;color:#cfe0f2;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .15s,border-color .15s,color .15s;white-space:nowrap}
+.dtools .db:hover{border-color:#3d7bec;color:#fff}
+.dtools .db.primary{background:#2f6fe4;border-color:#2f6fe4;color:#fff}
+.dtools .db.primary:hover{background:#3d7bec;border-color:#3d7bec}
+#stageCard .preview{padding:26px!important;background:#0b0f14;position:relative}
+#stageCard .preview canvas{box-shadow:0 14px 50px rgba(0,0,0,.7);border-radius:6px;background:#000}
+#stageCard .ph{font-size:16px;color:#5a6b7d;letter-spacing:.5px}
+#btnQuickSave{display:none!important}
+
+/* ---- 拖拽导入提示 ---- */
+body.dragging #stageCard .preview{outline:2px dashed #2f6fe4;outline-offset:-16px}
+body.dragging #stageCard .preview::after{content:"松手导入照片";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:#7aa8ff;font-size:16px;font-weight:600;background:rgba(11,15,20,.86);padding:10px 18px;border-radius:10px;pointer-events:none}
+
+/* ---- 窄窗口回退成上下布局 ---- */
+@media (max-width:820px){
+  main{grid-template-columns:1fr!important;grid-template-rows:1fr 46vh}
+  #sheetCard{grid-column:1;grid-row:2;height:46vh!important;border-right:0;border-top:1px solid #1c2430}
+  #stageCard{grid-column:1;grid-row:1;height:54vh!important}
+  .dtools .db{padding:8px 11px;font-size:12px}
+}
+
+
+/* ================= 桌面提示条 ================= */
+#dtoast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(10px);background:#111a24;color:#e8eefb;border:1px solid rgba(255,255,255,.16);padding:10px 16px;border-radius:10px;font-size:13px;line-height:1.5;max-width:70vw;z-index:99999;opacity:0;pointer-events:none;transition:opacity .18s,transform .18s;word-break:break-all;box-shadow:0 10px 30px rgba(0,0,0,.45)}
+#dtoast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#dtoast.err{background:#3a1616;border-color:#7a2b2b;color:#ffd6d6}
+</style>
+</head>
+<body>
+<header class="app">
+  <div class="logo">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+  </div>
+  <div>
+    <h1>照片水印</h1>
+    <p>读取 EXIF · 一键生成可自定义水印</p>
+  </div>
+</header>
+
+<main>
+  <!-- ============ 全屏画布（主界面只留照片） ============ -->
+  <section class="card" id="stageCard">
+    <h2>② 水印预览 <span class="tag" id="previewTag"></span></h2>
+    <div class="body">
+      <div class="topBar">
+        <button class="menuBtn" id="btnMenu" aria-label="打开菜单"><span></span><span></span><span></span></button>
+        <div class="tbInfo"><b>照片水印</b><div class="canvasTag" id="stageCount">未导入</div></div>
+      </div>
+      <div class="canvasWrap">
+        <div class="preview" id="preview"><div class="ph">请导入照片</div></div>
+        <div class="pnav hide" id="pnav">
+          <button class="pnBtn" id="navPrev" aria-label="上一张">‹</button>
+          <span class="pnTxt" id="navTxt">1 / 1</span>
+          <button class="pnBtn" id="navNext" aria-label="下一张">›</button>
+        </div>
+      </div>
+      <div class="hint hidden" id="dragHint">提示：直接在预览图上按住水印拖动，即可自由调整水印位置。</div>
+      <div id="exifBox" class="exif hidden"></div>
+      <span class="tag hidden" id="fileCount">未导入</span>
+      <span class="tag hidden" id="importCount">0 张</span>
+      <div class="toastBox"><div id="mapMsg"></div></div>
+    </div>
+  </section>
+
+  <div id="drawerMask"></div>
+
+  <!-- ============ 左侧抽屉菜单 ============ -->
+  <aside class="card" id="sheetCard">
+    <div id="sheetGrip" aria-label="上下拖动调整面板高度"><span></span></div>
+    <div class="dHead">
+      <span id="drawerTitle">菜单</span>
+      <span class="dLive"><i></i>实时</span>
+      <span id="liveInfo"></span>
+      <button id="sheetPeek" aria-label="收起面板看大图">▾</button>
+      <button class="dClose" id="drawerClose" aria-label="关闭">×</button>
+    </div>
+
+    <div id="drawerMenu">
+      <button class="dItem" data-view="vImport"><b>导入照片</b><i>从相册选择或拖拽 · 可多选</i><em>›</em></button>
+      <button class="dItem" data-view="vExport"><b>导出</b><i>保存到相册 · 批量导出</i><em>›</em></button>
+      <button class="dItem" data-view="tpl"><b>模板</b><i>水印版式与标题文字</i><em>›</em></button>
+      <button class="dItem" data-view="content"><b>内容</b><i>水印上显示哪些信息</i><em>›</em></button>
+      <button class="dItem" data-view="style"><b>样式</b><i>字号 · 标签高度 · 配色 · 位置</i><em>›</em></button>
+      <button class="dItem" data-view="map"><b>地图</b><i>逆地理编码服务与 Key</i><em>›</em></button>
+      <button class="dItem" data-view="vAbout"><b>关于</b><i>离线运行与隐私说明</i><em>›</em></button>
+    </div>
+
+    <div id="drawerView">
+      <div class="dView" id="vImport">
+        <button class="btn sm dBack" data-back="1">← 菜单</button>
+        <div id="drop">
+          <div class="big">点击选择照片，或拖拽到此处</div>
+          <div class="small">支持 JPG / JPEG · HEIC(部分) · PNG　可一次选择多张</div>
+          <input type="file" id="fileInput" accept="image/jpeg,image/jpg,image/png,image/heic,image/heif,image/*" multiple hidden>
+        </div>
+        <div class="strip" id="strip"></div>
+        <div class="row" style="margin-top:8px">
+          <button class="btn sm" id="btnReprocess">重新读取地址</button>
+          <button class="btn sm" id="btnClear">清空列表</button>
+        </div>
+      </div>
+
+      <div class="dView" id="vExport">
+        <button class="btn sm dBack" data-back="1">← 菜单</button>
+        <button class="btn primary" id="btnExport">导出当前照片（存到相册）</button>
+        <button class="btn" id="btnSavePng">导出 PNG</button>
+        <button class="btn" id="btnExportAll">批量导出全部</button>
+        <label class="f" style="margin-top:14px">导出尺寸</label>
+        <select id="exportSize">
+          <option value="0">原图（最大，部分手机可能失败）</option>
+          <option value="4096">长边 4096</option>
+          <option value="2560">长边 2560（推荐）</option>
+          <option value="1600">长边 1600（更省内存）</option>
+        </select>
+        <div class="hint" style="margin-top:10px">导出的照片保存在系统相册的「Pictures / 照片水印」文件夹。<br>若手机画布内存不足导致导出黑图，App 会自动缩小尺寸重试，并在仍失败时明确提示。</div>
+      </div>
+
+      <div class="dView" id="vAbout">
+        <button class="btn sm dBack" data-back="1">← 菜单</button>
+        <div class="hint">
+          本应用完全离线运行：照片、EXIF 解析、水印渲染全部在本机完成，不会上传任何照片。<br><br>
+          仅在解析地址时，会把该照片的经纬度（不含照片本身）发送给你所选的地图服务商以换取文字地址。<br><br>
+          API Key 只保存在本机，不会上传到第三方。
+        </div>
+      </div>
+
+    <!-- 模板 -->
+    <div class="dView tabpane active" id="tpl">
+      <details open>
+        <summary>模板与标题<span class="tag" id="tplTag"></span></summary>
+        <div class="body">
+          <label class="f">水印模板</label>
+          <div class="pillrow" id="tplPills">
+            <button class="pill on" data-tpl="reference">参考模板（蓝白标签）</button>
+            <button class="pill" data-tpl="simple">简洁面板</button>
+            <button class="pill" data-tpl="bar">单行角标</button>
+          </div>
+          <label class="f">标题文字（默认「现场拍照」，可自定义）</label>
+          <input type="text" id="titleText" value="现场拍照" placeholder="现场拍照">
+          <label class="f">标题图形（SVG 矢量，可自定义）</label>
+          <div class="pillrow" id="iconPills">
+            <button class="pill" data-icon="camera">相机</button>
+            <button class="pill" data-icon="pin">定位</button>
+            <button class="pill" data-icon="shield">盾牌</button>
+            <button class="pill" data-icon="clock">时钟</button>
+            <button class="pill on" data-icon="none">纯色条（参考样式）</button>
+          </div>
+          <div class="row" style="margin-top:8px">
+            <label class="f inline grow" style="margin:0"><input type="checkbox" id="iconInBar">图形显示在左侧色条内</label>
+          </div>
+          <div class="hint">参考样式为「纯蓝色竖条 + 白色标签 + 蓝色文字」，默认不显示图标；若想加图形，可选相机 / 定位 / 盾牌 / 时钟（SVG 矢量）。</div>
+          <div class="row" style="align-items:baseline;gap:8px">
+            <label class="f inline grow" style="margin:0">标题字号（现场拍照）</label>
+            <span class="tag" id="titleScaleVal">2.8%</span>
+          </div>
+          <input type="range" id="titleScale" min="1" max="12" step="0.1" value="2.8">
+          <div class="row" style="gap:6px;margin-top:6px">
+            <button class="btn sm" data-ts="2">小</button>
+            <button class="btn sm" data-ts="2.8">标准</button>
+            <button class="btn sm" data-ts="4">大</button>
+            <button class="btn sm" data-ts="6">特大</button>
+          </div>
+          <div class="hint">可随意拉到 1%–12%；标题与下方信息面板的字号是分开的，改标题不会影响信息文字。</div>
+          <div class="row" style="align-items:baseline;gap:8px;margin-top:10px">
+            <label class="f inline grow" style="margin:0">白色标签高度（白底有多厚）</label>
+            <span class="tag" id="chipScaleVal">6.2%　文字约占白底 52%</span>
+          </div>
+          <input type="range" id="chipScale" min="2" max="12" step="0.1" value="6.2">
+          <div class="hint">这一项只改白底的高度，不改字的大小。想让四个字更醒目：把这一项往左压（白边变窄），字立刻显大。</div>
+          <label class="f">水印位置（也可直接在预览图上拖动）</label>
+          <div class="posgrid" id="posGrid">
+            <button class="pos" data-pos="tl" title="左上"><i class="p p-tl"></i></button>
+            <button class="pos" data-pos="tc" title="上中"><i class="p p-tc"></i></button>
+            <button class="pos" data-pos="tr" title="右上"><i class="p p-tr"></i></button>
+            <button class="pos" data-pos="ml" title="左中"><i class="p p-ml"></i></button>
+            <button class="pos" data-pos="mc" title="正中"><i class="p p-mc"></i></button>
+            <button class="pos" data-pos="mr" title="右中"><i class="p p-mr"></i></button>
+            <button class="pos on" data-pos="bl" title="左下"><i class="p p-bl"></i></button>
+            <button class="pos" data-pos="bc" title="下中"><i class="p p-bc"></i></button>
+            <button class="pos" data-pos="br" title="右下"><i class="p p-br"></i></button>
+          </div>
+          <div class="row" style="margin-top:8px">
+            <label class="f inline grow" style="margin:0"><input type="checkbox" id="snapEdge"> 靠边时自动吸附</label>
+          </div>
+          <label class="f">整体大小（相对图片宽度 %）</label>
+          <input type="range" id="wmScale" min="50" max="220" step="5" value="100">
+          <label class="f">边距（相对图片宽度 %）</label>
+          <input type="range" id="marginScale" min="0" max="10" step="0.1" value="4">
+          <div id="customPosBox" class="hidden">
+            <label class="f">自定义位置 X（%）／ Y（%）</label>
+            <div class="grid2">
+              <input type="number" id="customX" min="0" max="100" step="0.1" value="0">
+              <input type="number" id="customY" min="0" max="100" step="0.1" value="100">
+            </div>
+          </div>
+          <label class="f">微调（每次 0.5%）</label>
+          <div class="nudge">
+            <button data-nudge="-1,0" aria-label="左移">←</button>
+            <button data-nudge="0,-1" aria-label="上移">↑</button>
+            <button data-nudge="0,1" aria-label="下移">↓</button>
+            <button data-nudge="1,0" aria-label="右移">→</button>
+            <button class="wide" data-nudge="reset">复位左下角</button>
+          </div>
+        </div>
+      </details>
+    </div>
+
+    <!-- 内容 -->
+    <div class="dView tabpane" id="content">
+      <details open>
+        <summary>显示哪些信息<span class="tag" id="fieldCount"></span></summary>
+        <div class="body">
+          <div id="fieldList"></div>
+          <button class="btn sm" id="btnAddField" style="margin-top:10px">+ 添加自定义行</button>
+          <label class="f inline"><input type="checkbox" id="showAllFields"> 全选 / 全不选</label>
+        </div>
+      </details>
+      <details>
+        <summary>时间与格式</summary>
+        <div class="body">
+          <label class="f">时间格式</label>
+          <select id="timeFormat">
+            <option value="ymd-hms">2026-11-02 11:55:58</option>
+            <option value="ymd-hm">2026-11-02 11:55</option>
+            <option value="slash">2026/11/02 11:55:58</option>
+            <option value="cn">2026年11月02日 11:55:58</option>
+            <option value="ymd">2026-11-02</option>
+          </select>
+          <label class="f">时间来源</label>
+          <select id="timeSource">
+            <option value="original">拍摄时间 (DateTimeOriginal)</option>
+            <option value="modify">修改时间 (ModifyDate)</option>
+            <option value="gps">GPS 时间</option>
+            <option value="now">导入时间（当前）</option>
+          </select>
+          <label class="f">经纬度小数位</label>
+          <input type="number" id="coordDigits" min="2" max="8" value="6">
+        </div>
+      </details>
+      <details>
+        <summary>手动补充 / 覆盖</summary>
+        <div class="body">
+          <label class="f">手动地址（填写后覆盖自动解析的地址）</label>
+          <input type="text" id="manualAddr" placeholder="如：河南省南阳市新野县庙前">
+          <label class="f">手动经度 / 纬度（留空则用 EXIF）</label>
+          <div class="grid2">
+            <input type="number" id="manualLon" step="0.000001" placeholder="经度">
+            <input type="number" id="manualLat" step="0.000001" placeholder="纬度">
+          </div>
+          <label class="f">自定义标题（可选，追加到标题下方）</label>
+          <input type="text" id="subtitleText" placeholder="如：现场验货">
+          <div class="row" style="margin-top:8px">
+            <button class="btn sm" id="btnResetManual">清空手动设置</button>
+          </div>
+        </div>
+      </details>
+    </div>
+
+    <!-- 样式 -->
+    <div class="dView tabpane" id="style">
+      <details open>
+        <summary>颜色</summary>
+        <div class="body">
+          <div class="grid2">
+            <div>
+              <label class="f">主题色 / 标签色</label>
+              <input type="color" id="accentColor" value="#3072EE">
+              <div class="swatches" id="accentSwatches" style="margin-top:6px"></div>
+            </div>
+            <div>
+              <label class="f">标题文字色</label>
+              <input type="color" id="titleColor" value="#3072EE">
+              <div class="swatches" id="titleSwatches" style="margin-top:6px"></div>
+            </div>
+          </div>
+          <div class="grid2">
+            <div>
+              <label class="f">面板底色</label>
+              <input type="color" id="panelColor" value="#101418">
+            </div>
+            <div>
+              <label class="f">面板不透明度</label>
+              <input type="range" id="panelAlpha" min="0" max="100" step="1" value="55">
+            </div>
+          </div>
+          <div class="grid2">
+            <div>
+              <label class="f">标签底色</label>
+              <input type="color" id="labelBg" value="#FFFFFF">
+            </div>
+            <div>
+              <label class="f">标签不透明度</label>
+              <input type="range" id="labelBgAlpha" min="0" max="100" step="1" value="100">
+            </div>
+          </div>
+          <label class="f">信息文字颜色</label>
+          <input type="color" id="textColor" value="#FFFFFF">
+          <label class="f inline"><input type="checkbox" id="labelAccent"> 字段名使用主题色</label>
+        </div>
+      </details>
+      <details open>
+        <summary>尺寸与排版</summary>
+        <div class="body">
+          <label class="f">信息字号（相对图片宽度 %）</label>
+          <input type="range" id="bodyScale" min="1.2" max="6" step="0.1" value="2.6">
+          <label class="f">行距倍数</label>
+          <input type="range" id="lineHeight" min="1" max="2.4" step="0.05" value="1.55">
+          <label class="f">标签圆角（相对字号 %）</label>
+          <input type="range" id="radiusScale" min="0" max="60" step="1" value="18">
+          <label class="f">面板内边距（相对字号 %）</label>
+          <input type="range" id="padScale" min="10" max="120" step="2" value="42">
+          <label class="f">标签与面板间距（相对字号 %）</label>
+          <input type="range" id="gapScale" min="0" max="120" step="2" value="26">
+          <label class="f">面板宽度上限（相对图片宽度 %，0=自适应）</label>
+          <input type="range" id="panelWidth" min="0" max="95" step="1" value="0">
+          <label class="f inline"><input type="checkbox" id="shadow" checked> 面板投影</label>
+          <label class="f inline"><input type="checkbox" id="labelShadow"> 文字描边/阴影（浅色照片更清晰）</label>
+        </div>
+      </details>
+      <details>
+        <summary>导出</summary>
+        <div class="body">
+          <label class="f">导出格式</label>
+          <select id="exportFormat">
+            <option value="jpeg">JPEG（保留原图 EXIF 信息）</option>
+            <option value="png">PNG（不保留 EXIF）</option>
+          </select>
+          <label class="f">JPEG 质量</label>
+          <input type="range" id="jpegQuality" min="50" max="100" step="1" value="92">
+          <label class="f inline"><input type="checkbox" id="fixOrientation" checked> 自动按 EXIF 旋转摆正（并把 Orientation 修正为 1）</label>
+          <label class="f inline"><input type="checkbox" id="keepExif" checked> 导出时保留原始 EXIF 数据</label>
+          <label class="f inline"><input type="checkbox" id="autoAddTime"> 在 EXIF 中写入当前时间</label>
+        </div>
+      </details>
+    </div>
+
+    <!-- 地图 -->
+    <div class="dView tabpane" id="map">
+      <details open>
+        <summary>逆地理编码（地址解析）</summary>
+        <div class="body">
+          <label class="f">服务提供方</label>
+          <div class="pillrow" id="providerPills">
+            <button class="pill on" data-provider="baidu">百度地图</button>
+            <button class="pill" data-provider="amap">高德地图</button>
+            <button class="pill" data-provider="tencent">腾讯地图</button>
+            <button class="pill" data-provider="tianditu">天地图</button>
+            <button class="pill" data-provider="none">不解析</button>
+          </div>
+          <label class="f" id="keyLabel">百度地图 AK</label>
+          <input type="text" id="apiKey" placeholder="填写你的 API Key（保存在本机浏览器）">
+          <div class="hint" id="keyHint"></div>
+          <div class="row" style="margin-top:8px">
+            <button class="btn sm" id="btnTestKey">测试连接</button>
+            <button class="btn sm" id="btnSaveKey">保存 Key</button>
+          </div>
+          <div class="keyStatus" id="keyStatus"></div>
+          <div id="mapMsg"></div>
+        </div>
+      </details>
+      <details open>
+        <summary>坐标系</summary>
+        <div class="body">
+          <label class="f">显示的坐标系</label>
+          <select id="coordSystem">
+            <option value="auto">跟随所选服务（百度=BD09 / 高德·腾讯=GCJ02）</option>
+            <option value="wgs84">WGS84（GPS 原始）</option>
+            <option value="gcj02">GCJ02（高德 / 腾讯）</option>
+            <option value="bd09">BD09（百度）</option>
+          </select>
+          <label class="f inline"><input type="checkbox" id="autoGeo" checked> 导入照片后自动解析地址</label>
+          <div class="hint">EXIF 中的经纬度为 WGS84 原始坐标，App 会自动转换到所选坐标系后再显示与查询地址。</div>
+        </div>
+      </details>
+    </div>
+    </div>
+  </aside>
+<button id="btnQuickSave" class="quickSave">保存图片</button>
+<div id="saveMask" class="modalMask">
+    <div class="modalBox">
+      <div class="mHead"><span>导出结果</span><button class="dClose" id="saveClose">×</button></div>
+      <div class="mBody">
+        <div class="saveTip">长按下面的图片 → 选「存储到照片」，保存的就是这张原图</div>
+        <div class="savePic"><img id="saveImg" alt="导出结果"></div>
+        <div class="saveWarn" id="saveWarn" style="display:none"></div>
+        <div class="saveMeta" id="saveMeta"></div>
+        <div class="saveName" id="saveName"></div>
+        <a class="btn ghost" id="saveOpen" target="_blank" rel="noopener" style="display:none;text-align:center;text-decoration:none;margin-top:10px;line-height:38px">在新窗口打开（长按图片保存）</a>
+        <div class="saveActs">
+          <button class="btn" id="saveShare">保存到相册（系统分享）</button>
+          <button class="btn ghost" id="saveDone">完成</button>
+        </div>
+      </div>
+    </div>
+  </div>
+<div id="expModal" class="modalMask">
+    <div class="modalBox">
+      <div class="mHead"><span>选择导出尺寸</span><button class="dClose" id="expClose">×</button></div>
+      <div class="mBody">
+        <div class="mInfo" id="expInfo"></div>
+        <div class="mList" id="expList"></div>
+        <label class="f inline mExif"><input type="checkbox" id="expCrop"> 自动裁掉四周空白（长截图只留照片部分）</label>
+        <label class="f inline mExif"><input type="checkbox" id="expExif" checked> 写入原始 EXIF（关掉可排除 EXIF 引起的兼容问题）</label>
+        <div class="mHint" id="expHint"></div>
+        <button class="btn sm" id="expPng" style="width:100%;margin-top:10px">改用 PNG 导出（JPEG 编码异常时的备用方案）</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+
+<footer>
+  照片水印 · 纯本地离线运行的 EXIF 水印工具<br>
+  支持高德 / 百度 / 腾讯 逆地理编码，SVG 矢量图形水印，水印内容与样式全部可自定义
+</footer>
+<script>
+'use strict';
+/* =====================================================================
+   照片水印 App —— 纯前端、离线可用
+   模块：EXIF 解析 / 坐标转换 / 逆地理编码 / SVG 矢量图形 / 水印渲染
+   ===================================================================== */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const fmt = (v, n) => (v === null || v === undefined || isNaN(v)) ? '' : Number(v).toFixed(n);
+
+/* ======================= 一、EXIF 解析 ======================= */
+const Exif = (function () {
+  const TAG_NAMES = {
+    0x010E:'ImageDescription',0x010F:'Make',0x0110:'Model',0x0112:'Orientation',0x0128:'ResolutionUnit',
+    0x0131:'Software',0x0132:'ModifyDate',0x013B:'Artist',0x8298:'Copyright',0x829A:'ExposureTime',
+    0x829D:'FNumber',0x8822:'ExposureProgram',0x8827:'ISO',0x9003:'DateTimeOriginal',0x9004:'DateTimeDigitized',
+    0x9010:'OffsetTime',0x9011:'OffsetTimeOriginal',0x9012:'OffsetTimeDigitized',0x9201:'ShutterSpeedValue',
+    0x9202:'ApertureValue',0x9207:'MeteringMode',0x9209:'Flash',0x920A:'FocalLength',0x9286:'UserComment',
+    0xA002:'PixelXDimension',0xA003:'PixelYDimension',0xA405:'FocalLengthIn35mmFilm',0xA430:'CameraOwnerName',
+    0xA431:'BodySerialNumber',0xA432:'LensSpecification',0xA433:'LensMake',0xA434:'LensModel',0xA435:'LensSerialNumber',
+    0xA500:'Gamma',0x8769:'ExifIFD',0x8825:'GPSIFD',0xA005:'InteropIFD',
+    0x0001:'GPSLatitudeRef',0x0002:'GPSLatitude',0x0003:'GPSLongitudeRef',0x0004:'GPSLongitude',
+    0x0005:'GPSAltitudeRef',0x0006:'GPSAltitude',0x0007:'GPSTimeStamp',0x0008:'GPSSatellites',
+    0x0009:'GPSStatus',0x000B:'GPSDOP',0x001D:'GPSDateStamp',0x0012:'GPSMapDatum'
+  };
+  const TYPE_SIZE = {1:1,2:1,3:2,4:4,5:8,6:1,7:1,8:2,9:4,10:8,11:4,12:8,13:4};
+
+  /* --- 在 JPEG 中定位 APP1/Exif 段 --- */
+  function findExifSegment(buf) {
+    if (buf.length < 4 || buf[0] !== 0xFF || buf[1] !== 0xD8) return null;
+    let off = 2;
+    while (off < buf.length - 3) {
+      if (buf[off] !== 0xFF) { off++; continue; }
+      const marker = buf[off + 1];
+      if (marker === 0xD8 || marker === 0x01 || (marker >= 0xD0 && marker <= 0xD7)) { off += 2; continue; }
+      if (marker === 0xDA || marker === 0xD9) break;
+      const len = (buf[off + 2] << 8) | buf[off + 3];
+      if (marker === 0xE1 && off + 4 + 6 <= buf.length) {
+        const p = buf[off + 4];
+        if (p === 0x45 && buf[off+5] === 0x78 && buf[off+6] === 0x69 && buf[off+7] === 0x66 &&
+            buf[off+8] === 0x00 && buf[off+9] === 0x00) {
+          return { segStart: off, dataStart: off + 4, tiffStart: off + 10, segEnd: off + 2 + len };
+        }
+      }
+      off += 2 + len;
+    }
+    return null;
+  }
+
+  /* --- 解析 TIFF 结构的 EXIF --- */
+  function parseTiff(buf, tiffStart) {
+    if (tiffStart + 8 > buf.length) return null;
+    const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+    const bom = dv.getUint16(tiffStart);
+    let little;
+    if (bom === 0x4949) little = true;
+    else if (bom === 0x4D4D) little = false;
+    else return null;
+    if (dv.getUint16(tiffStart + 2, little) !== 0x002A) return null;
+    const ifd0Base = tiffStart + dv.getUint32(tiffStart + 4, little);
+    const tags = {}, meta = {};
+    let guard = 0;
+
+    function readIfd(offset, prefix) {
+      if (offset + 2 > buf.length || guard++ > 24) return;
+      const count = dv.getUint16(offset, little);
+      if (count > 512) return;
+      for (let i = 0; i < count; i++) {
+        const e = offset + 2 + i * 12;
+        if (e + 12 > buf.length) return;
+        const tag = dv.getUint16(e, little);
+        const type = dv.getUint16(e + 2, little);
+        const num = dv.getUint32(e + 4, little);
+        const size = (TYPE_SIZE[type] || 1) * num;
+        const inline = size <= 4;
+        const valuePos = inline ? e + 8 : tiffStart + dv.getUint32(e + 8, little);
+        let value = null;
+        try {
+          if (type === 2) {
+            let s = '';
+            for (let k = 0; k < num; k++) {
+              const c = buf[valuePos + k];
+              if (c === 0) break;
+              s += String.fromCharCode(c);
+            }
+            value = s;
+            meta[prefix + tag] = { valueOffset: valuePos, count: num, type: type };
+          } else if (type === 3 || type === 8) {
+            value = dv.getUint16(valuePos, little);
+            if (type === 8) value = dv.getInt16(valuePos, little);
+          } else if (type === 4 || type === 9) {
+            value = dv.getUint32(valuePos, little);
+            if (type === 9) value = dv.getInt32(valuePos, little);
+          } else if (type === 5 || type === 10) {
+            const arr = [];
+            for (let k = 0; k < num; k++) {
+              const o = valuePos + k * 8;
+              const n = dv.getUint32(o, little), d = dv.getUint32(o + 4, little);
+              arr.push(d ? n / d : 0);
+            }
+            value = arr.length === 1 ? arr[0] : arr;
+          } else if (type === 1 || type === 6 || type === 7) {
+            const arr = [];
+            for (let k = 0; k < Math.min(num, 64); k++) arr.push(buf[valuePos + k]);
+            value = num === 1 ? arr[0] : arr;
+          }
+        } catch (e) { value = null; }
+        const name = prefix + (TAG_NAMES[tag] || ('0x' + tag.toString(16)));
+        tags[name] = value;
+        if (prefix === '' && tag === 0x0112) meta.orientationValueOffset = valuePos;
+        if (prefix === '' && (tag === 0x9003 || tag === 0x0132 || tag === 0x9004)) {
+          meta.dateTimes = meta.dateTimes || {}; meta.dateTimes[tag] = meta[name];
+        }
+        if (tag === 0x8769) { readIfd(tiffStart + dv.getUint32(e + 8, little), 'Exif.'); }
+        if (tag === 0x8825) { readIfd(tiffStart + dv.getUint32(e + 8, little), 'GPS.'); }
+      }
+    }
+    readIfd(ifd0Base, '');
+    return { tags, meta, little, tiffStart };
+  }
+
+  /* --- HEIC/HEIF 等容器：在字节流中扫描 TIFF 头（启发式） --- */
+  function findTiffAnywhere(buf) {
+    for (let i = 0; i < buf.length - 8 && i < 8 * 1024 * 1024; i++) {
+      const b0 = buf[i], b1 = buf[i + 1];
+      if (!((b0 === 0x49 && b1 === 0x49) || (b0 === 0x4D && b1 === 0x4D))) continue;
+      const little = b0 === 0x49;
+      if (little) { if (buf[i+2] !== 0x2A || buf[i+3] !== 0x00) continue; }
+      else { if (buf[i+2] !== 0x00 || buf[i+3] !== 0x2A) continue; }
+      try {
+        const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+        const ifd = i + 4 + dv.getUint32(i + 4, little);
+        if (ifd + 2 > buf.length || ifd > i + 65536) continue;
+        const cnt = dv.getUint16(ifd, little);
+        if (cnt === 0 || cnt > 256) continue;
+        const r = parseTiff(buf, i);
+        if (r && (r.tags.Make || r.tags.Model || r.tags['Exif.DateTimeOriginal'] || r.tags['GPS.GPSLatitude'])) return r;
+      } catch (e) { /* continue */ }
+    }
+    return null;
+  }
+
+  function dmsToDec(v, ref) {
+    if (!v) return null;
+    const a = Array.isArray(v) ? v : [v];
+    if (a.length < 3) return null;
+    let d = a[0] + a[1] / 60 + a[2] / 3600;
+    if (ref && /^S/i.test(String(ref))) d = -d;
+    if (ref && /^W/i.test(String(ref))) d = -d;
+    return d;
+  }
+
+  /* --- 对外主入口 --- */
+  function parse(buf) {
+    const out = { ok: false, hasExif: false, tags: {}, raw: null, segment: null, format: 'jpeg' };
+    let parsed = null, segment = null;
+    if (buf[0] === 0xFF && buf[1] === 0xD8) {
+      segment = findExifSegment(buf);
+      if (segment) parsed = parseTiff(buf, segment.tiffStart);
+      else parsed = findTiffAnywhere(buf);
+    } else {
+      out.format = 'heif/other';
+      parsed = findTiffAnywhere(buf);
+    }
+    if (!parsed) { out.reason = '未找到 EXIF 数据'; return out; }
+    out.ok = true; out.hasExif = true;
+    out.tags = parsed.tags;
+    out.raw = parsed;
+    out.segment = segment;
+    out.gps = {
+      lat: dmsToDec(parsed.tags['GPS.GPSLatitude'], parsed.tags['GPS.GPSLatitudeRef']),
+      lon: dmsToDec(parsed.tags['GPS.GPSLongitude'], parsed.tags['GPS.GPSLongitudeRef']),
+      alt: parsed.tags['GPS.GPSAltitude'] !== undefined && parsed.tags['GPS.GPSAltitude'] !== null
+        ? Number(parsed.tags['GPS.GPSAltitude']) * (String(parsed.tags['GPS.GPSAltitudeRef']).trim() === '1' ? -1 : 1) : null,
+      date: parsed.tags['GPS.GPSDateStamp'] || '',
+      time: Array.isArray(parsed.tags['GPS.GPSTimeStamp']) ? parsed.tags['GPS.GPSTimeStamp'].map(x => String(Math.round(x)).padStart(2, '0')).join(':') : (parsed.tags['GPS.GPSTimeStamp'] || '')
+    };
+    return out;
+  }
+
+  /* --- 在原始 APP1 字节上就地修正 Orientation / 时间 --- */
+  function patchSegment(segmentBytes, tiffStartInSeg, opts) {
+    const buf = segmentBytes.slice();
+    const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+    const little = dv.getUint16(tiffStartInSeg) === 0x4949;
+    const scan = (ifdOff) => {
+      if (ifdOff + 2 > buf.length) return;
+      const count = dv.getUint16(ifdOff, little);
+      if (count > 512) return;
+      for (let i = 0; i < count; i++) {
+        const e = ifdOff + 2 + i * 12;
+        if (e + 12 > buf.length) return;
+        const tag = dv.getUint16(e, little);
+        const type = dv.getUint16(e + 2, little);
+        const num = dv.getUint32(e + 4, little);
+        const size = (TYPE_SIZE[type] || 1) * num;
+        const valuePos = size <= 4 ? e + 8 : tiffStartInSeg + dv.getUint32(e + 8, little);
+        if (tag === 0x0112 && type === 3 && opts.orientation !== undefined) {
+          dv.setUint16(valuePos, opts.orientation, little);
+        }
+        if (type === 2 && (tag === 0x9003 || tag === 0x0132 || tag === 0x9004) && opts.now) {
+          const s = opts.now;
+          if (num >= s.length) { for (let k = 0; k < s.length; k++) buf[valuePos + k] = s.charCodeAt(k); }
+        }
+        if (tag === 0x8769 && type === 4) {
+          scan(tiffStartInSeg + dv.getUint32(e + 8, little));
+        }
+      }
+    };
+    scan(tiffStartInSeg + dv.getUint32(tiffStartInSeg + 4, little));
+    return buf;
+  }
+
+  /* --- 把 APP1 段插入新的 JPEG（canvas 导出的） --- */
+  /* 把 Exif APP1 段插到 SOI 之后（若存在 JFIF APP0 则插在其后），
+     确保新段一定在 SOS 之前；原图自带的 Exif APP1 会被剔除，避免双段。
+     旧实现：没有 APP0 的相机照片会把新段追加到 EOI 之后 -> 文件损坏、某些解码器显示全黑。 */
+  function injectIntoJpeg(jpegBytes, app1Segment) {
+    if (!jpegBytes || jpegBytes.length < 4) throw new Error('JPEG 数据为空');
+    if (jpegBytes[0] !== 0xFF || jpegBytes[1] !== 0xD8) throw new Error('不是 JPEG 文件');
+    if (!app1Segment || app1Segment.length < 4) throw new Error('EXIF 段为空');
+    if (app1Segment.length > 65537) throw new Error('EXIF 段超过 64KB');
+    const head = [];
+    let off = 2, app0End = -1;
+    while (off < jpegBytes.length - 1) {
+      if (jpegBytes[off] !== 0xFF) break;
+      const marker = jpegBytes[off + 1];
+      if (marker === 0xD8 || marker === 0x01 || (marker >= 0xD0 && marker <= 0xD7)) { off += 2; continue; }
+      if (marker === 0xDA) break;                       /* 到达 SOS，后面是图像数据 */
+      if (marker === 0xD9) break;
+      const len = (jpegBytes[off + 2] << 8) | jpegBytes[off + 3];
+      if (len < 2 || off + 2 + len > jpegBytes.length) break;
+      const segEnd = off + 2 + len;
+      const isExifApp1 = marker === 0xE1 && segEnd >= off + 10 &&
+        jpegBytes[off + 4] === 0x45 && jpegBytes[off + 5] === 0x78 &&
+        jpegBytes[off + 6] === 0x69 && jpegBytes[off + 7] === 0x66;
+      if (!isExifApp1) {
+        for (let i = off; i < segEnd; i++) head.push(jpegBytes[i]);
+        if (marker === 0xE0 && app0End < 0) app0End = head.length;
+      }
+      off = segEnd;
+    }
+    const cut = app0End > 0 ? app0End : 0;
+    const tailLen = jpegBytes.length - off;
+    const out = new Uint8Array(2 + cut + app1Segment.length + (head.length - cut) + tailLen);
+    let p = 0;
+    out[p++] = 0xFF; out[p++] = 0xD8;
+    for (let i = 0; i < cut; i++) out[p++] = head[i];
+    out.set(app1Segment, p); p += app1Segment.length;
+    for (let i = cut; i < head.length; i++) out[p++] = head[i];
+    out.set(jpegBytes.subarray(off), p);
+    /* 结构自检：必须只有一个 Exif APP1，且在 SOS 之前；结尾必须是 FFD9 */
+    if (!(out[out.length - 2] === 0xFF && out[out.length - 1] === 0xD9)) throw new Error('JPEG 结尾异常');
+    return out;
+  }
+  function buildApp1Segment(exifBytes, tiffStartInExif) {
+    // exifBytes: 'Exif\0\0' + tiff
+    const len = exifBytes.length + 2;
+    if (len > 65535) throw new Error('EXIF 数据超过 64KB，无法写入 APP1');
+    const seg = new Uint8Array(2 + len);
+    seg[0] = 0xFF; seg[1] = 0xE1;
+    seg[2] = (len >> 8) & 0xFF; seg[3] = len & 0xFF;
+    seg.set(exifBytes, 4);
+    return seg;
+  }
+  return { parse, patchSegment, injectIntoJpeg, buildApp1Segment, findExifSegment, parseTiff, dmsToDec };
+})();
+
+/* ======================= 二、坐标转换 ======================= */
+const Coord = (function () {
+  const PI = 3.1415926535897932384626, A = 6378245.0, EE = 0.00669342162296594323;
+  function outOfChina(lon, lat) { return !(lon > 73.66 && lon < 135.05 && lat > 3.86 && lat < 53.55); }
+  function tLat(x, y) {
+    let r = -100 + 2 * x + 3 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * Math.sqrt(Math.abs(x));
+    r += (20 * Math.sin(6 * x * PI) + 20 * Math.sin(2 * x * PI)) * 2 / 3;
+    r += (20 * Math.sin(y * PI) + 40 * Math.sin(y / 3 * PI)) * 2 / 3;
+    r += (160 * Math.sin(y / 12 * PI) + 320 * Math.sin(y * PI / 30)) * 2 / 3;
+    return r;
+  }
+  function tLon(x, y) {
+    let r = 300 + x + 2 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
+    r += (20 * Math.sin(6 * x * PI) + 20 * Math.sin(2 * x * PI)) * 2 / 3;
+    r += (20 * Math.sin(x * PI) + 40 * Math.sin(x / 3 * PI)) * 2 / 3;
+    r += (150 * Math.sin(x / 12 * PI) + 300 * Math.sin(x / 30 * PI)) * 2 / 3;
+    return r;
+  }
+  function wgs2gcj(lon, lat) {
+    if (outOfChina(lon, lat)) return [lon, lat];
+    let dLat = tLat(lon - 105, lat - 35), dLon = tLon(lon - 105, lat - 35);
+    const rad = lat / 180 * PI;
+    let magic = Math.sin(rad);
+    magic = 1 - EE * magic * magic;
+    const sqrt = Math.sqrt(magic);
+    dLat = (dLat * 180) / ((A * (1 - EE)) / (magic * sqrt) * PI);
+    dLon = (dLon * 180) / (A / sqrt * Math.cos(rad) * PI);
+    return [lon + dLon, lat + dLat];
+  }
+  function gcj2bd(lon, lat) {
+    const z = Math.sqrt(lon * lon + lat * lat) + 0.00002 * Math.sin(lat * 3000 / 180);
+    const theta = Math.atan2(lat, lon) + 0.000003 * Math.cos(lon * 3000 / 180);
+    return [z * Math.cos(theta) + 0.0065, z * Math.sin(theta) + 0.006];
+  }
+  function bd2gcj(lon, lat) {
+    const x = lon - 0.0065, y = lat - 0.006, z = Math.sqrt(x * x + y * y) - 0.00002 * Math.sin(y * 3000 / 180);
+    const theta = Math.atan2(y, x) - 0.000003 * Math.cos(x * 3000 / 180);
+    return [z * Math.cos(theta), z * Math.sin(theta)];
+  }
+  function convert(lon, lat, system) {
+    if (lon === null || lat === null || lon === undefined || lat === undefined) return [null, null];
+    if (system === 'gcj02') return wgs2gcj(lon, lat);
+    if (system === 'bd09') { const g = wgs2gcj(lon, lat); return gcj2bd(g[0], g[1]); }
+    return [lon, lat];
+  }
+  const SYSTEM_NAME = { wgs84: 'WGS84坐标系', gcj02: 'GCJ02坐标系', bd09: 'BD09坐标系' };
+  return { wgs2gcj, gcj2bd, bd2gcj, convert, SYSTEM_NAME };
+})();
+
+/* ======================= 三、逆地理编码 ======================= */
+const Geo = (function () {
+  const PROVIDERS = {
+    /* 百度：逆地理编码接口无跨域头、也不支持 JSONP，网页版改走百度 JS API（需「浏览器端 AK」） */
+    baidu:   { name: '百度地图', coord: 'bd09', jsapi: true,
+      parse: (d) => d && d.status === 0 && d.result ? (d.result.formatted_address || '') : '' },
+    /* 高德 Web 服务接口：有 CORS（Access-Control-Allow-Origin: \*），但不支持 JSONP，必须用 fetch */
+    amap:    { name: '高德地图', coord: 'gcj02', useFetch: true, url: 'https://restapi.amap.com/v3/geocode/regeo',
+      build: (k, lon, lat) => ({ url: 'https://restapi.amap.com/v3/geocode/regeo', params: { key: k, location: lon + ',' + lat, extensions: 'base', output: 'json' } }),
+      parse: (d) => d && d.status === '1' && d.regeocode ? (d.regeocode.formatted_address || '') : '' },
+    tencent: { name: '腾讯地图', coord: 'gcj02', url: 'https://apis.map.qq.com/ws/geocoder/v1/',
+      build: (k, lon, lat) => ({ url: 'https://apis.map.qq.com/ws/geocoder/v1/', params: { key: k, location: lat + ',' + lon, output: 'jsonp' } }),
+      parse: (d) => d && d.status === 0 && d.result ? (d.result.address || '') : '' },
+    /* 天地图：接口支持跨域（CORS *），用 fetch 直连；坐标系为 CGCS2000（与 WGS84 同值） */
+    tianditu: { name: '天地图', coord: 'wgs84', useFetch: true, url: 'https://api.tianditu.gov.cn/geocoder',
+      build: (k, lon, lat) => ({ url: 'https://api.tianditu.gov.cn/geocoder', params: {
+        postStr: JSON.stringify({ lon: lon, lat: lat, ver: 1 }), type: 'geocode', tk: k } }),
+      parse: (d) => d && String(d.status) === '0' && d.result ? (d.result.formatted_address || '') : '' }
+  };
+  let seq = 0;
+  function jsonp(url, params, timeout = 9000) {
+    return new Promise((resolve, reject) => {
+      const cb = '__wmjsonp_' + Date.now().toString(36) + '_' + (seq++);
+      const qs = Object.keys(params).filter(k => params[k] !== undefined && params[k] !== null && params[k] !== '')
+        .map(k => encodeURIComponent(k) + '=' + encodeURIComponent(params[k])).join('&');
+      const full = url + (url.indexOf('?') >= 0 ? '&' : '?') + qs + '&callback=' + cb;
+      const s = document.createElement('script');
+      let done = false;
+      const timer = setTimeout(() => { if (!done) { done = true; cleanup(); reject(new Error('请求超时')); } }, timeout);
+      function cleanup() { clearTimeout(timer); try { delete window[cb]; } catch (e) { window[cb] = undefined; } if (s.parentNode) s.parentNode.removeChild(s); }
+      window[cb] = (data) => { if (!done) { done = true; cleanup(); resolve(data); } };
+      s.onerror = () => { if (!done) { done = true; cleanup(); reject(new Error('网络请求失败：无法加载该接口地址（可能被浏览器或网络拦截）')); } };
+      s.src = full; document.head.appendChild(s);
+    });
+  }
+  /* 把服务商返回的错误码翻译成用户能照做的提示 */
+  function explain(providerId, data) {
+    const d = data || {};
+    const raw = d.message || d.msg || d.info || (d.result && d.result.message) || '';
+    const code = d.status !== undefined ? String(d.status)
+      : (d.code !== undefined ? String(d.code) : String(d.infocode || ''));
+    const T = {
+      tencent: {
+        '110': '腾讯拒绝了请求来源：请到腾讯位置服务控制台，检查该 Key 的「授权 IP / 域名」白名单。手机上网 IP 不固定，建议不要设置 IP 限制。',
+        '111': '腾讯签名校验失败：该 Key 开启了「签名校验」，网页端无法生成签名，请关闭签名校验。',
+        '121': '腾讯拒绝请求来源（IP 不在白名单）：请清空该 Key 的 IP 白名单，或改用无白名单的 Key。',
+        '190': 'Key 无效：请确认复制完整，且创建的是「WebServiceAPI」类型的 Key（不是 JS API / 小程序 Key）。',
+        '311': 'Key 格式错误：请确认创建的是「WebServiceAPI」类型的 Key。',
+        '120': '该 Key 今日调用量已达上限。',
+        '300': '请求参数缺失。'
+      },
+      tianditu: {
+        '301001': '天地图 Key 非法：请到天地图控制台确认这是「服务端」类型的 Key，且复制完整。',
+        '301002': '天地图 Key 权限不足：请确认该 Key 已开通「逆地理编码 / 地理编码」服务。',
+        '301003': '天地图 Key 今日配额已用完。',
+        '308000': '天地图 tk 无效：请确认复制的是「服务端」类型的 Key。',
+        '308011': '天地图 tk 无效或参数不合规：请确认复制完整（32 位字符串）。',
+        '308012': '天地图 tk 已过期或被禁用。'
+      },
+      baidu: {
+        '302': '百度 AK 未授权该服务：请在控制台勾选「地理编码」并保存。',
+        '200': '百度 AK 无效：请确认是「浏览器端」类型的 AK。'
+      },
+      amap: {
+        '10001': 'Key 无效：请确认创建的是「Web服务」类型的 Key（不是 Web端 JS API Key）。',
+        '10009': 'Key 平台类型不匹配：当前填的是 JS API 或 iOS/Android Key，请换成「Web服务」Key。',
+        '10003': '今日调用量已达上限。',
+        '10044': '今日调用量已达上限（个人开发者每日额度较小）。',
+        '20003': '请求参数缺失。'
+      }
+    };
+    const table = T[providerId] || {};
+    return table[code] || (raw ? ('接口返回：' + raw + (code ? '（代码 ' + code + '）' : '')) : '未返回地址信息');
+  }
+  async function fetchJson(url, params, timeout = 12000) {
+    const qs = Object.keys(params).filter(k => params[k] !== undefined && params[k] !== null && params[k] !== '')
+      .map(k => encodeURIComponent(k) + '=' + encodeURIComponent(params[k])).join('&');
+    const full = url + (url.indexOf('?') >= 0 ? '&' : '?') + qs;
+    const ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    const timer = setTimeout(() => { if (ctl) ctl.abort(); }, timeout);
+    try {
+      const res = await fetch(full, ctl ? { signal: ctl.signal } : {});
+      /* 天地图等接口在 Key 非法时返回 403，但响应体里带着原因，先尝试解析再决定是否报错 */
+      let data = null;
+      try { data = await res.json(); } catch (e2) { data = null; }
+      if (data === null) throw new Error('接口返回 HTTP ' + res.status);
+      return data;
+    } catch (e) {
+      if (e && (e.name === 'AbortError')) throw new Error('请求超时（检查网络或 Key 权限）');
+      if (e && /Failed to fetch|NetworkError/.test(String(e.message))) throw new Error('网络请求被拒绝：该接口不允许跨域，或本机网络无法访问');
+      throw e;
+    } finally { clearTimeout(timer); }
+  }
+  /* 百度 JS API（浏览器端 AK） */
+  let bmapLoading = null;
+  function loadBMap(ak) {
+    if (window.BMap && window.BMap.Geocoder) return Promise.resolve();
+    if (bmapLoading) return bmapLoading;
+    bmapLoading = new Promise((resolve, reject) => {
+      const cb = '__bmap_' + Date.now().toString(36);
+      let done = false;
+      const timer = setTimeout(() => { if (!done) { done = true; reject(new Error('百度 JS API 加载超时：请确认 AK 是「浏览器端」类型，且 Referer 白名单允许当前来源（可设为 *）')); } }, 12000);
+      window[cb] = () => { if (done) return; done = true; clearTimeout(timer); resolve(); };
+      const sc = document.createElement('script');
+      sc.src = 'https://api.map.baidu.com/api?v=3.0&ak=' + encodeURIComponent(ak) + '&callback=' + cb;
+      sc.onerror = () => { if (!done) { done = true; clearTimeout(timer); reject(new Error('百度 JS API 无法加载：AK 无效，或被 Referer 白名单拦截')); } };
+      document.head.appendChild(sc);
+    });
+    bmapLoading.catch(() => { bmapLoading = null; });
+    return bmapLoading;
+  }
+  async function baiduReverse(ak, lon, lat) {
+    await loadBMap(ak);
+    return await new Promise((resolve, reject) => {
+      try {
+        const gc = new window.BMap.Geocoder();
+        gc.getLocation(new window.BMap.Point(lon, lat), function (rs) {
+          if (rs && (rs.address || rs.business)) resolve(rs.address || rs.business);
+          else reject(new Error('百度未返回地址：请确认该 AK 已开通「地理编码」服务，且 Referer 白名单包含当前来源'));
+        });
+      } catch (e) {
+        const m = String((e && e.message) || e);
+        reject(new Error(/undefined|null|_rd|cannot read/i.test(m)
+          ? '百度 AK 校验未通过：请确认是「浏览器端 AK」，并在控制台把 Referer 白名单设为 * 或你的域名'
+          : ('百度 JS API 初始化失败：' + m)));
+      }
+    });
+  }
+  async function reverse(providerId, key, lon, lat, system) {
+    const p = PROVIDERS[providerId];
+    if (!p) throw new Error('未选择服务商');
+    if (!key) throw new Error('未填写 API Key');
+    const target = system || p.coord;
+    const c = Coord.convert(lon, lat, target);
+    if (p.jsapi) {
+      const addr0 = await baiduReverse(key, c[0], c[1]);
+      return { address: addr0, lon: c[0], lat: c[1], system: target };
+    }
+    const req = p.build(key, c[0], c[1]);
+    let data;
+    if (p.useFetch) {
+      data = await fetchJson(req.url, req.params);
+    } else {
+      try {
+        data = await jsonp(req.url, req.params);
+      } catch (e) {
+        /* JSONP 被拦（CSP / 网络 / 服务商不支持）时，再试一次跨域 fetch */
+        try { data = await fetchJson(req.url, req.params); }
+        catch (e2) { throw new Error('连不上' + p.name + '：' + ((e && e.message) || e) + '；改用跨域请求也失败。请检查手机网络，或换用其它服务商。'); }
+      }
+    }
+    const addr = p.parse(data);
+    if (!addr) throw new Error(explain(providerId, data));
+    return { address: addr, lon: c[0], lat: c[1], system: target, raw: data };
+  }
+  return { PROVIDERS, reverse, jsonp };
+})();
+/* ======================= 四、SVG 矢量图形（自研路径渲染，无第三方依赖） ======================= */
+const SvgPath = (function () {
+  const NUM = /[-+]?(?:\d*\.\d+|\d+\.?)(?:[eE][-+]?\d+)?/g;
+  function tokenize(d) {
+    const out = [];
+    const re = /([a-zA-Z])|([-+]?(?:\d*\.\d+|\d+\.?)(?:[eE][-+]?\d+)?)/g;
+    let m;
+    while ((m = re.exec(d)) !== null) out.push(m[1] ? m[1] : parseFloat(m[2]));
+    return out;
+  }
+  /* 将 SVG path 数据在 ctx 上描边（当前变换需已缩放到 viewBox 坐标系） */
+  function stroke(ctx, d) {
+    const t = tokenize(d);
+    let i = 0, cmd = 'M', x = 0, y = 0, sx = 0, sy = 0, px = 0, py = 0, qx = 0, qy = 0;
+    const num = () => { const v = t[i++]; return typeof v === 'number' ? v : 0; };
+    const has = () => i < t.length;
+    function bez(x1, y1, x2, y2, x3, y3) { ctx.bezierCurveTo(x1, y1, x2, y2, x3, y3); px = x3; py = y3; }
+    while (i < t.length) {
+      if (typeof t[i] === 'string') { cmd = t[i++]; }
+      const rel = cmd === cmd.toLowerCase();
+      const C = cmd.toUpperCase();
+      switch (C) {
+        case 'M': {
+          const nx = num(), ny = num();
+          x = rel ? x + nx : nx; y = rel ? y + ny : ny; sx = x; sy = y;
+          ctx.moveTo(x, y); px = x; py = y; qx = x; qy = y;
+          cmd = rel ? 'l' : 'L'; break;
+        }
+        case 'L': { const nx = num(), ny = num(); x = rel ? x + nx : nx; y = rel ? y + ny : ny; ctx.lineTo(x, y); px = x; py = y; qx = x; qy = y; break; }
+        case 'H': { const nx = num(); x = rel ? x + nx : nx; ctx.lineTo(x, y); px = x; py = y; qx = x; qy = y; break; }
+        case 'V': { const ny = num(); y = rel ? y + ny : ny; ctx.lineTo(x, y); px = x; py = y; qx = x; qy = y; break; }
+        case 'C': {
+          const x1 = rel ? x + num() : num(), y1 = rel ? y + num() : num();
+          const x2 = rel ? x + num() : num(), y2 = rel ? y + num() : num();
+          const x3 = rel ? x + num() : num(), y3 = rel ? y + num() : num();
+          bez(x1, y1, x2, y2, x3, y3); x = x3; y = y3; qx = x; qy = y; break;
+        }
+        case 'S': {
+          const x2 = rel ? x + num() : num(), y2 = rel ? y + num() : num();
+          const x3 = rel ? x + num() : num(), y3 = rel ? y + num() : num();
+          const rx = 2 * x - qx, ry = 2 * y - qy;
+          bez(rx, ry, x2, y2, x3, y3); x = x3; y = y3; qx = x; qy = y; break;
+        }
+        case 'Q': {
+          const x1 = rel ? x + num() : num(), y1 = rel ? y + num() : num();
+          const x2 = rel ? x + num() : num(), y2 = rel ? y + num() : num();
+          const rx = 2 * x - qx, ry = 2 * y - qy;
+          ctx.bezierCurveTo(rx + 2 / 3 * (x1 - rx), ry + 2 / 3 * (y1 - ry),
+            x2 + 2 / 3 * (x1 - x2), y2 + 2 / 3 * (y1 - y2), x2, y2);
+          x = x2; y = y2; px = x; py = y; qx = x1; qy = y1; break;
+        }
+        case 'T': {
+          const x2 = rel ? x + num() : num(), y2 = rel ? y + num() : num();
+          const rx = 2 * x - qx, ry = 2 * y - qy;
+          ctx.bezierCurveTo(rx + 2 / 3 * (0), ry + 2 / 3 * (0), x2 + 2 / 3 * (0), y2 + 2 / 3 * (0), x2, y2);
+          x = x2; y = y2; qx = x; qy = y; break;
+        }
+        case 'A': { num(); num(); num(); num(); num(); const x2 = rel ? x + num() : num(), y2 = rel ? y + num() : num(); ctx.lineTo(x2, y2); x = x2; y = y2; break; }
+        case 'Z': { ctx.closePath(); x = sx; y = sy; px = x; py = y; break; }
+        default: i++;
+      }
+      if (!has()) break;
+    }
+  }
+  return { stroke, tokenize };
+})();
+
+/* --- 内置 SVG 图标库（24×24 视窗） --- */
+const ICONS = {
+  camera: { name: '相机', items: [
+    { t: 'path', d: 'M3.6 8.8 H7.7 L9.9 5.6 H14.1 L16.3 8.8 H20.4 V19.2 H3.6 Z' },
+    { t: 'circle', cx: 12, cy: 13.7, r: 3.5 } ] },
+  pin: { name: '定位', items: [
+    { t: 'path', d: 'M12 21.2 C12 21.2 18.6 15.6 18.6 10.6 C18.6 6.9 15.7 4 12 4 C8.3 4 5.4 6.9 5.4 10.6 C5.4 15.6 12 21.2 12 21.2 Z' },
+    { t: 'circle', cx: 12, cy: 10.4, r: 2.5 } ] },
+  shield: { name: '盾牌', items: [
+    { t: 'path', d: 'M12 3.2 L19.8 6.1 V11.9 C19.8 16.6 16.3 20.1 12 21.5 C7.7 20.1 4.2 16.6 4.2 11.9 V6.1 Z' },
+    { t: 'path', d: 'M8.9 12.2 L11.1 14.4 L15.3 10.2' } ] },
+  clock: { name: '时钟', items: [
+    { t: 'circle', cx: 12, cy: 12, r: 8.4 },
+    { t: 'path', d: 'M12 6.9 V12 L15.8 14.2' } ] },
+  none: { name: '纯色条', items: [] }
+};
+/* 在 canvas 上绘制 SVG 图标（矢量、可任意缩放、颜色可调） */
+function drawIcon(ctx, name, cx, cy, size, color, weight) {
+  const def = ICONS[name];
+  if (!def || !def.items.length) return;
+  const s = size / 24;
+  ctx.save();
+  ctx.translate(cx - size / 2, cy - size / 2);
+  ctx.scale(s, s);
+  ctx.strokeStyle = color;
+  ctx.fillStyle = 'transparent';
+  ctx.lineWidth = (weight || 2) / s * (size / 24) * (24 / 24);
+  ctx.lineWidth = (weight || 2);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  for (const it of def.items) {
+    ctx.beginPath();
+    if (it.t === 'path') SvgPath.stroke(ctx, it.d);
+    else if (it.t === 'circle') ctx.arc(it.cx, it.cy, it.r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/* ======================= 五、水印渲染 ======================= */
+const WATERMARK = (function () {
+  const FONT = '"PingFang SC","Hiragino Sans GB","Microsoft YaHei",-apple-system,system-ui,sans-serif';
+  const FIELDS = [
+    { key: 'lon', label: '经度' }, { key: 'lat', label: '纬度' }, { key: 'coord', label: '坐标系' },
+    { key: 'addr', label: '地址' }, { key: 'time', label: '时间' },
+    { key: 'model', label: '设备型号' }, { key: 'make', label: '品牌' }, { key: 'lens', label: '镜头' },
+    { key: 'fnumber', label: '光圈' }, { key: 'shutter', label: '快门' }, { key: 'iso', label: 'ISO' },
+    { key: 'focal', label: '焦距' }, { key: 'alt', label: '海拔' }, { key: 'gpsTime', label: 'GPS时间' },
+    { key: 'size', label: '图片尺寸' }, { key: 'software', label: '软件' }, { key: 'custom', label: '自定义' }
+  ];
+  const DEFAULT_FIELDS = { lon: 1, lat: 1, coord: 1, addr: 1, time: 1 };
+
+  function fmtTime(raw, format) {
+    if (!raw) return '';
+    let s = String(raw).trim().replace(/^(\d{4}):(\d{2}):(\d{2})/, '$1-$2-$3');
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+    if (!m) return s;
+    const Y = m[1], M = m[2], D = m[3], h = m[4] || '00', mi = m[5] || '00', se = m[6] || '00';
+    switch (format) {
+      case 'ymd-hms': return `${Y}-${M}-${D} ${h}:${mi}:${se}`;
+      case 'ymd-hm': return `${Y}-${M}-${D} ${h}:${mi}`;
+      case 'slash': return `${Y}/${M}/${D} ${h}:${mi}:${se}`;
+      case 'cn': return `${Y}年${M}月${D}日 ${h}:${mi}:${se}`;
+      case 'ymd': return `${Y}-${M}-${D}`;
+      default: return `${Y}-${M}-${D} ${h}:${mi}:${se}`;
+    }
+  }
+  function timeValue(photo, st) {
+    if (st.timeSource === 'now') return fmtTime(new Date(), 'ymd-hms');
+    if (st.timeSource === 'gps') {
+      const g = photo.exif && photo.exif.gps;
+      if (!g || !g.date) return '';
+      return fmtTime(g.date.replace(/:/g, '-') + ' ' + (g.time || ''), st.timeFormat);
+    }
+    const t = photo.exif && photo.exif.tags;
+    let raw = '';
+    if (st.timeSource === 'modify') raw = t['ModifyDate'] || '';
+    else raw = t['Exif.DateTimeOriginal'] || t['DateTimeOriginal'] || t['ModifyDate'] || '';
+    return fmtTime(raw, st.timeFormat);
+  }
+  function coordSystemOf(photo, st) {
+    if (st.coordSystem && st.coordSystem !== 'auto') return st.coordSystem;
+    if (st.provider === 'baidu') return 'bd09';
+    if (st.provider === 'amap' || st.provider === 'tencent') return 'gcj02';
+    return 'wgs84';
+  }
+  function buildRows(photo, st) {
+    const t = (photo.exif && photo.exif.tags) || {};
+    const g = (photo.exif && photo.exif.gps) || {};
+    const system = coordSystemOf(photo, st);
+    let lon = g.lon, lat = g.lat;
+    if (st.manualLon !== '' && st.manualLon !== null && st.manualLat !== '' && st.manualLat !== null) {
+      lon = parseFloat(st.manualLon); lat = parseFloat(st.manualLat);
+    }
+    const c = Coord.convert(lon, lat, system);
+    const d = st.coordDigits;
+    const vals = {
+      lon: c[0] === null ? '' : fmt(c[0], d),
+      lat: c[1] === null ? '' : fmt(c[1], d),
+      coord: (c[0] === null) ? '' : Coord.SYSTEM_NAME[system],
+      addr: st.manualAddr || photo.address || (c[0] === null ? '无GPS信息' : '未解析'),
+      time: timeValue(photo, st),
+      model: [t['Make'], t['Model']].filter(Boolean).join(' ') || '',
+      make: t['Make'] || '',
+      lens: [t['LensModel'], t['LensMake']].filter(Boolean).join(' ') || '',
+      fnumber: t['Exif.FNumber'] ? 'f/' + fmt(t['Exif.FNumber'], 1) : '',
+      shutter: t['Exif.ExposureTime'] ? (t['Exif.ExposureTime'] < 1 ? '1/' + Math.round(1 / t['Exif.ExposureTime']) + 's' : t['Exif.ExposureTime'] + 's') : '',
+      iso: t['Exif.ISO'] ? String(t['Exif.ISO']) : '',
+      focal: t['Exif.FocalLength'] ? fmt(t['Exif.FocalLength'], 1) + 'mm' : (t['Exif.FocalLengthIn35mmFilm'] ? fmt(t['Exif.FocalLengthIn35mmFilm'], 0) + 'mm(等效)' : ''),
+      alt: g.alt === null || g.alt === undefined ? '' : fmt(g.alt, 1) + 'm',
+      gpsTime: (g.date ? g.date + ' ' + (g.time || '') : ''),
+      size: (photo.width && photo.height) ? photo.width + '×' + photo.height : '',
+      software: t['Software'] || '',
+      custom: st.customValue || ''
+    };
+    const rows = [];
+    for (const f of FIELDS) {
+      if (!st.fields[f.key]) continue;
+      const v = vals[f.key];
+      if (v === '' && f.key !== 'custom') continue;
+      rows.push({ label: (st.fieldLabels && st.fieldLabels[f.key]) || f.label, value: v });
+    }
+    return rows;
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    r = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+  function leftBar(ctx, x, y, w, h, r) {
+    r = Math.min(r, w, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.lineTo(x + w, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.arcTo(x, y + h, x, y + h - r, r);
+    ctx.arcTo(x, y, x + r, y, r);
+    ctx.closePath();
+  }
+  function rightBar(ctx, x, y, w, h, r) {
+    r = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x, y + h);
+    ctx.closePath();
+  }
+  function hexToRgba(hex, alpha) {
+    const h = hex.replace('#', '');
+    const n = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+    const r = parseInt(n.slice(0, 2), 16), g = parseInt(n.slice(2, 4), 16), b = parseInt(n.slice(4, 6), 16);
+    return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+  }
+
+  /* 主渲染：把水印画到 ctx（ctx 已按原图像素尺寸设置好变换） */
+  function draw(ctx, W, H, photo, st) {
+    const rows = buildRows(photo, st);
+    const wmScale = (st.watermarkScale === undefined ? 100 : st.watermarkScale) / 100;
+    const titleFont = Math.max(10, Math.round(W * st.titleScale / 100 * wmScale));
+    const bodyFont = Math.max(9, Math.round(W * st.bodyScale / 100 * wmScale));
+    const margin = Math.round(W * st.marginScale / 100);
+    const radius = bodyFont * st.radiusScale / 100;
+    const padX = bodyFont * st.padScale / 100 * 1.15;
+    const padY = bodyFont * st.padScale / 100 * 0.75;
+    const gap = bodyFont * st.gapScale / 100;
+    const lineH = bodyFont * st.lineHeight;
+    const title = st.titleText || '';
+    const accent = st.accentColor;
+
+    ctx.save();
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'left';
+
+    const titleFontB = '600 ' + titleFont + 'px ' + FONT;
+    const bodyFontB = '400 ' + bodyFont + 'px ' + FONT;
+    const labelFontB = '600 ' + bodyFont + 'px ' + FONT;
+
+    ctx.font = titleFontB;   /* 必须先设定字体再测量，否则宽度取的是默认 10px，白底会算窄、文字溢出 */
+    const titleW = title ? ctx.measureText(title).width : 0;
+    const iconSize = titleFont * 0.95;
+    const hasIcon = st.icon && st.icon !== 'none';
+
+    /* ---- 底图随内容伸缩：先量出可用宽度，超长内容自动折行 ---- */
+    const hardCapW = W * 0.94;
+    /* 面板宽度默认最多占画面 62%，超出就折行——避免地址一长就横穿整张照片 */
+    const capPx = st.panelWidth ? Math.min(W * 0.96, W * st.panelWidth / 100) : W * 0.62;
+    const availTextW = Math.max(titleFont * 3, capPx - padX * 2);
+
+    let maxTextW = 0;
+    const lines = [];
+    rows.forEach(r => {
+      const label = r.label + '：';
+      ctx.font = labelFontB;
+      const lw = ctx.measureText(label).width;
+      ctx.font = bodyFontB;
+      const full = lw + ctx.measureText(r.value).width;
+      if (full <= availTextW) {
+        lines.push({ label, value: r.value, labelW: lw, total: full });
+        if (full > maxTextW) maxTextW = full;
+        return;
+      }
+      /* 超长（如详细地址）：按可用宽度逐字折行，续行缩进到数值位置 */
+      const indent = Math.min(lw, availTextW * 0.35);
+      let rest = r.value, first = true;
+      while (rest.length) {
+        const avail = first ? availTextW - lw : availTextW - indent;
+        let cut = rest.length;
+        while (cut > 1 && ctx.measureText(rest.slice(0, cut)).width > avail) cut--;
+        const seg = rest.slice(0, cut);
+        const w = (first ? lw : indent) + ctx.measureText(seg).width;
+        lines.push({ label: first ? label : '', value: seg, labelW: first ? lw : indent, total: w });
+        if (w > maxTextW) maxTextW = w;
+        rest = rest.slice(cut); first = false;
+      }
+    });
+
+    let blockW, blockH;
+    /* 参考模板实测比例（取自参考图逐像素测量）：
+       蓝色竖条宽 ≈ 0.49×标签高；左内边距 ≈ 0.31×标签高；
+       右内边距 ≈ 0.37×标签高；圆角 ≈ 0.09×标签高 */
+    /* 标签高度独立于字号：只改字号不会再连带把白底一起放大；
+       若字号大到放不下，白底会以下限 1.15×字号自动兜住 */
+    const chipScalePct = (st.chipScale === undefined ? 6.2 : st.chipScale);
+    const chipH = Math.max(titleFont * 1.15, W * chipScalePct / 100 * wmScale);
+    const barW = hasIcon ? (st.iconInBar ? chipH * 0.9 : 0) : chipH * 0.486;
+    const iconPad = (hasIcon && !st.iconInBar) ? iconSize + titleFont * 0.3 : 0;
+    const padL = chipH * 0.314, padR = chipH * 0.371;
+    const chipW = barW + iconPad + padL + titleW + padR;
+    /* 面板宽度 = 内容实际宽度 + 内边距；panelWidth 只作为「上限」，不再固定成死宽 */
+    const finalPanelW = Math.max(bodyFont * 3, Math.min(capPx, maxTextW + padX * 2));
+
+    if (st.template === 'reference') {
+      blockW = Math.max(chipW, finalPanelW);
+      blockH = chipH + gap + (lines.length ? padY * 2 + lines.length * lineH : 0);
+    } else if (st.template === 'simple') {
+      blockW = finalPanelW;
+      blockH = padY * 2 + titleFont * 1.5 + (st.subtitleText ? bodyFont * 1.4 : 0) + gap * 0.6 + (lines.length ? lines.length * lineH : 0);
+    } else {
+      const summary = (rows[0] ? rows[0].label + '：' + rows[0].value : '') +
+        (rows[1] ? '　' + rows[1].label + '：' + rows[1].value : '');
+      ctx.font = bodyFontB;
+      blockW = chipW + titleFont * 0.3 + ctx.measureText(summary).width;
+      blockH = chipH;
+    }
+    let x0 = margin, y0 = margin;
+    if (st.position === 'custom') {
+      x0 = clamp((st.customX || 0) / 100 * W, 0, Math.max(0, W - blockW));
+      y0 = clamp((st.customY || 0) / 100 * H, 0, Math.max(0, H - blockH));
+    } else {
+      const pos = String(st.position || 'bl');
+      /* 位置编码：第 1 位为纵向(t/m/b)，第 2 位为横向(l/c/r) */
+      const vp = pos.charAt(0), hp = pos.charAt(1);
+      if (hp === 'c') x0 = (W - blockW) / 2;
+      else if (hp === 'r') x0 = Math.max(margin, W - blockW - margin);
+      if (vp === 'm') y0 = (H - blockH) / 2;
+      else if (vp === 'b') y0 = Math.max(margin, H - blockH - margin);
+    }
+
+    const drawShadow = (x, y, w, h, r) => {
+      if (!st.shadow) return;
+      ctx.save();
+      ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = Math.max(6, bodyFont * 0.5); ctx.shadowOffsetY = Math.max(2, bodyFont * 0.12);
+      ctx.fillStyle = 'rgba(0,0,0,0.001)';
+      roundRect(ctx, x, y, w, h, r); ctx.fill();
+      ctx.restore();
+    };
+    const textShadow = () => {
+      if (!st.labelShadow) return;
+      ctx.shadowColor = 'rgba(0,0,0,0.65)'; ctx.shadowBlur = Math.max(3, bodyFont * 0.25);
+    };
+
+    if (st.template === 'reference') {
+      /* --- 蓝白标签 --- */
+      const cy = y0;
+      const cr = chipH * 0.09;   // 参考样式为小圆角
+      drawShadow(x0, cy, chipW, chipH, cr);
+      // 左侧蓝色竖条（左圆角、右直角）
+      if (barW > 0) {
+        ctx.fillStyle = accent;
+        leftBar(ctx, x0, cy, barW, chipH, cr);
+        ctx.fill();
+        if (hasIcon && st.iconInBar) {
+          drawIcon(ctx, st.icon, x0 + barW / 2, cy + chipH / 2, iconSize * 0.9, '#ffffff', 2);
+        }
+      }
+      // 标签主体（左直角、右圆角）——底色与透明度可调
+      if (title || (hasIcon && !st.iconInBar)) {
+        const bgAlpha = (st.labelBgAlpha === undefined ? 100 : st.labelBgAlpha) / 100;
+        ctx.fillStyle = hexToRgba(st.labelBg || '#FFFFFF', bgAlpha);
+        rightBar(ctx, x0 + barW, cy, chipW - barW, chipH, cr);
+        ctx.fill();
+      }
+      // 标题文字
+      let tx = x0 + barW + padL;
+      if (hasIcon && !st.iconInBar) {
+        drawIcon(ctx, st.icon, tx + iconSize / 2, cy + chipH / 2, iconSize, accent, 2);
+        tx += iconSize + titleFont * 0.3;
+      }
+      if (title) {
+        ctx.font = titleFontB;
+        ctx.fillStyle = st.titleColor;
+        textShadow();
+        /* 水平居中：在「蓝条右侧（或图标右侧）→ 标签右缘」之间取正中 */
+        const iconAdv = (hasIcon && !st.iconInBar) ? (iconSize + titleFont * 0.3) : 0;
+        const areaX = x0 + barW + iconAdv;
+        const areaW = Math.max(0, x0 + chipW - areaX);
+        const textX = areaX + Math.max(0, (areaW - titleW) / 2);
+        /* 垂直居中：按真实墨迹高度（ascent/descent）算基线，任何标签高度都居正中 */
+        /* 注意：actualBoundingBox* 是相对当前 textBaseline 的，必须先切到 alphabetic 再量 */
+        ctx.textBaseline = 'alphabetic';
+        const tm = ctx.measureText(title) || {};
+        const asc = (tm.actualBoundingBoxAscent > 0) ? tm.actualBoundingBoxAscent : titleFont * 0.88;
+        const desc = (tm.actualBoundingBoxDescent > 0) ? tm.actualBoundingBoxDescent : titleFont * 0.12;
+        const baseline = cy + (chipH - (asc + desc)) / 2 + asc;
+        ctx.fillText(title, textX, baseline);
+        ctx.textBaseline = 'top';
+        ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+      }
+
+      /* --- 信息面板 --- */
+      const py = cy + chipH + gap;
+      const ph = padY * 2 + lines.length * lineH;
+      if (lines.length) {
+        drawShadow(x0, py, finalPanelW, ph, radius);
+        ctx.fillStyle = hexToRgba(st.panelColor, st.panelAlpha / 100);
+        roundRect(ctx, x0, py, finalPanelW, ph, radius);
+        ctx.fill();
+        lines.forEach((r, i) => {
+          const ty = py + padY + i * lineH;
+          if (r.label) {
+            ctx.font = labelFontB;
+            ctx.fillStyle = st.labelAccent ? accent : st.textColor;
+            textShadow();
+            ctx.fillText(r.label, x0 + padX, ty);
+          }
+          ctx.font = bodyFontB;
+          ctx.fillStyle = st.textColor;
+          ctx.fillText(r.value, x0 + padX + r.labelW, ty);
+          ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+        });
+      }
+    } else if (st.template === 'simple') {
+      const py = y0;
+      drawShadow(x0, py, finalPanelW, blockH, radius);
+      ctx.fillStyle = hexToRgba(st.panelColor, st.panelAlpha / 100);
+      roundRect(ctx, x0, py, finalPanelW, blockH, radius);
+      ctx.fill();
+      // 左侧主题色条
+      ctx.fillStyle = accent;
+      leftBar(ctx, x0, py, bodyFont * 0.22, blockH, radius);
+      ctx.fill();
+      let ty = py + padY;
+      // 标题行
+      ctx.font = titleFontB;
+      let tx = x0 + padX;
+      if (hasIcon) { drawIcon(ctx, st.icon, tx + iconSize / 2, ty + titleFont * 0.62, iconSize, accent, 2); tx += iconSize + titleFont * 0.25; }
+      ctx.fillStyle = st.titleColor;
+      textShadow();
+      ctx.fillText(title, tx, ty + (titleFont * 1.5 - titleFont * 1.15) / 2);
+      ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+      ty += titleFont * 1.5;
+      if (st.subtitleText) {
+        ctx.font = bodyFontB; ctx.fillStyle = st.textColor;
+        ctx.fillText(st.subtitleText, x0 + padX, ty);
+        ty += bodyFont * 1.4;
+      }
+      ty += gap * 0.6;
+      lines.forEach((r, i) => {
+        const y = ty + i * lineH;
+        if (r.label) {
+          ctx.font = labelFontB;
+          ctx.fillStyle = st.labelAccent ? accent : st.textColor;
+          ctx.fillText(r.label, x0 + padX, y);
+        }
+        ctx.font = bodyFontB;
+        ctx.fillStyle = st.textColor;
+        ctx.fillText(r.value, x0 + padX + r.labelW, y);
+      });
+    } else {
+      /* 单行角标 */
+      const py = y0;
+      drawShadow(x0, py, chipW, chipH, chipH * 0.22);
+      ctx.fillStyle = accent;
+      leftBar(ctx, x0, py, barW, chipH, chipH * 0.22); ctx.fill();
+      if (hasIcon && st.iconInBar) drawIcon(ctx, st.icon, x0 + barW / 2, py + chipH / 2, iconSize, '#ffffff', 2);
+      ctx.fillStyle = hexToRgba(st.panelColor, Math.max(st.panelAlpha / 100, 0.55));
+      roundRect(ctx, x0 + barW, py, chipW - barW, chipH, chipH * 0.22); ctx.fill();
+      let tx = x0 + barW + titleFont * 0.4;
+      if (hasIcon && !st.iconInBar) { drawIcon(ctx, st.icon, tx + iconSize / 2, py + chipH / 2, iconSize, accent, 2); tx += iconSize + titleFont * 0.25; }
+      ctx.font = titleFontB; ctx.fillStyle = st.titleColor;
+      ctx.textBaseline = 'alphabetic';
+      const tmB = ctx.measureText(title) || {};
+      const ascB = (tmB.actualBoundingBoxAscent > 0) ? tmB.actualBoundingBoxAscent : titleFont * 0.88;
+      const descB = (tmB.actualBoundingBoxDescent > 0) ? tmB.actualBoundingBoxDescent : titleFont * 0.12;
+      ctx.fillText(title, tx, py + (chipH - (ascB + descB)) / 2 + ascB);
+      ctx.textBaseline = 'top';
+      // 摘要
+      let summary = (rows[0] ? rows[0].label + '：' + rows[0].value : '') +
+        (rows[1] ? '　' + rows[1].label + '：' + rows[1].value : '');
+      ctx.font = bodyFontB;
+      const maxSumW = Math.max(0, hardCapW - chipW - titleFont * 0.3);
+      if (ctx.measureText(summary).width > maxSumW) {
+        let n = summary.length;
+        while (n > 1 && ctx.measureText(summary.slice(0, n) + '…').width > maxSumW) n--;
+        summary = summary.slice(0, n) + '…';
+      }
+      ctx.fillStyle = st.textColor;
+      ctx.fillText(summary, x0 + chipW + titleFont * 0.3, py + (chipH - bodyFont * 1.15) / 2);
+    }
+    ctx.restore();
+    return { x: x0, y: y0, w: blockW, h: blockH };
+  }
+  return { FIELDS, DEFAULT_FIELDS, draw, buildRows, fmtTime, coordSystemOf };
+})();
+/* ======================= 六、应用状态与界面逻辑 ======================= */
+const SETTINGS_KEY = 'wm-settings-v1', KEYS_KEY = 'wm-apikeys-v1';
+const APP_VER = '2.3';
+const DEFAULT_SETTINGS = {
+  ver: 5,
+  template: 'reference', titleText: '现场拍照', subtitleText: '', icon: 'none', iconInBar: false,
+  titleScale: 2.8, chipScale: 6.2, bodyScale: 1.8, lineHeight: 1.55, radiusScale: 18, padScale: 42, gapScale: 26,
+  panelWidth: 0, marginScale: 4, position: 'bl', watermarkScale: 100, customX: 0, customY: 100, snapEdge: true,
+  accentColor: '#3072EE', titleColor: '#3072EE', panelColor: '#101418', panelAlpha: 55,
+  labelBg: '#FFFFFF', labelBgAlpha: 100,
+  textColor: '#FFFFFF', labelAccent: false, shadow: true, labelShadow: false,
+  fields: { lon: 1, lat: 1, coord: 1, addr: 1, time: 1, model: 0, make: 0, lens: 0, fnumber: 0, shutter: 0, iso: 0, focal: 0, alt: 0, gpsTime: 0, size: 0, software: 0, custom: 0 },
+  fieldLabels: {}, customValue: '',
+  timeFormat: 'ymd-hms', timeSource: 'original', coordDigits: 6,
+  provider: 'amap', coordSystem: 'auto', autoGeo: true,
+  manualAddr: '', manualLon: '', manualLat: '',
+  exportFormat: 'jpeg', jpegQuality: 92, exportSize: '2560', fixOrientation: true, keepExif: true, autoAddTime: false
+};
+const state = {
+  photos: [], currentId: null,
+  settings: JSON.parse(JSON.stringify(DEFAULT_SETTINGS)),
+  keys: { baidu: '', amap: '', tencent: '', tianditu: '' }
+};
+
+function saveSettings() {
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings)); } catch (e) { }
+}
+function loadSettings() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
+    if (s) Object.assign(state.settings, s, { fields: Object.assign({}, DEFAULT_SETTINGS.fields, s.fields || {}) });
+    /* 版本迁移：旧版本默认的标签样式 / 位置已按新参考图调整，此处强制刷新 */
+    if (!s || s.ver !== DEFAULT_SETTINGS.ver) {
+      state.settings.position = 'bl';
+      /* 字号比例：旧版 3.2%/2.6% 在照片上偏大，统一收敛到 2.3%/1.8% */
+      state.settings.titleScale = DEFAULT_SETTINGS.titleScale;
+      state.settings.chipScale = DEFAULT_SETTINGS.chipScale;
+      state.settings.bodyScale = DEFAULT_SETTINGS.bodyScale;
+      state.settings.icon = 'none';
+      state.settings.iconInBar = false;
+      state.settings.ver = DEFAULT_SETTINGS.ver;
+    }
+  } catch (e) { }
+  try { const k = JSON.parse(localStorage.getItem(KEYS_KEY) || 'null'); if (k) Object.assign(state.keys, k); } catch (e) { }
+}
+function saveKeys() { try { localStorage.setItem(KEYS_KEY, JSON.stringify(state.keys)); } catch (e) { } }
+
+/* ---------------- 图片解码（含 EXIF 方向处理） ---------------- */
+/* 直接读 JPEG 的 SOF 段，拿到「未旋转」的真实像素尺寸。
+   用来判断 createImageBitmap 到底有没有替我们转过方向——不依赖 EXIF 里的 PixelXDimension。 */
+function jpegRawSize(buffer) {
+  try {
+    const dv = new DataView(buffer);
+    if (dv.byteLength < 4 || dv.getUint16(0) !== 0xFFD8) return null;
+    let i = 2;
+    while (i + 9 < dv.byteLength) {
+      if (dv.getUint8(i) !== 0xFF) { i++; continue; }
+      const m = dv.getUint8(i + 1);
+      if (m === 0xFF) { i++; continue; }
+      if (m === 0xD8 || m === 0x01 || (m >= 0xD0 && m <= 0xD7)) { i += 2; continue; }
+      const len = dv.getUint16(i + 2);
+      if (m >= 0xC0 && m <= 0xCF && m !== 0xC4 && m !== 0xC8 && m !== 0xCC) {
+        return { w: dv.getUint16(i + 7), h: dv.getUint16(i + 5) };
+      }
+      i += 2 + len;
+    }
+  } catch (e) { }
+  return null;
+}
+async function decodeImage(file, exif, rawSize) {
+  let bmp = null, browserApplied = false;
+  if (window.createImageBitmap) {
+    try { bmp = await createImageBitmap(file, { imageOrientation: 'none' }); } catch (e) { bmp = null; }
+    if (!bmp) { try { bmp = await createImageBitmap(file); } catch (e) { bmp = null; } }
+  }
+  if (!bmp) {
+    bmp = await new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        /* 等浏览器真正解码完成再释放 URL，否则个别手机会拿到空图（导出全黑） */
+        const done = () => { try { URL.revokeObjectURL(url); } catch (e) { } resolve(img); };
+        if (img.decode) img.decode().then(done).catch(done); else done();
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('图片解码失败')); };
+      img.src = url;
+    });
+    browserApplied = true; // <img> 会自动按 EXIF 方向摆正
+  }
+  const orientation = (exif && exif.tags && exif.tags['Orientation']) || 1;
+  if (!browserApplied && rawSize && rawSize.w && rawSize.h && rawSize.w !== rawSize.h) {
+    /* 用文件里的真实像素尺寸判断：解码结果的宽高被换过，说明浏览器已经替我们转好了方向 */
+    if (bmp.width === rawSize.h && bmp.height === rawSize.w) browserApplied = true;
+    else if (bmp.width === rawSize.w && bmp.height === rawSize.h) browserApplied = false;
+  }
+  if (!browserApplied) {
+    /* 兜底：EXIF 里的 PixelXDimension / PixelYDimension */
+    const t = (exif && exif.tags) || {};
+    const exW = t['Exif.PixelXDimension'] || t['PixelXDimension'];
+    const exH = t['Exif.PixelYDimension'] || t['PixelYDimension'];
+    if (exW && exH && orientation >= 5 && orientation <= 8 && bmp.width === exH && bmp.height === exW) {
+      browserApplied = true; // 浏览器已旋转
+    }
+  }
+  return { bmp, orientation, browserApplied };
+}
+function orientInfo(o, w, h) {
+  switch (o) {
+    case 2: return { m: [-1, 0, 0, 1, w, 0], W: w, H: h };
+    case 3: return { m: [-1, 0, 0, -1, w, h], W: w, H: h };
+    case 4: return { m: [1, 0, 0, -1, 0, h], W: w, H: h };
+    case 5: return { m: [0, 1, 1, 0, 0, 0], W: h, H: w };
+    case 6: return { m: [0, 1, -1, 0, h, 0], W: h, H: w };
+    case 7: return { m: [0, -1, -1, 0, h, w], W: h, H: w };
+    case 8: return { m: [0, -1, 1, 0, 0, w], W: h, H: w };
+    default: return { m: [1, 0, 0, 1, 0, 0], W: w, H: h };
+  }
+}
+
+/* ---------------- 渲染 ---------------- */
+async function drawPhoto(photo, st, target, maxEdge, noWatermark) {
+  const bmp = photo.bmp;
+  let W, H, m;
+  if (photo.browserApplied) { W = bmp.width; H = bmp.height; m = [1, 0, 0, 1, 0, 0]; }
+  else {
+    const o = st.fixOrientation ? (photo.orientation || 1) : 1;
+    const info = orientInfo(o, bmp.width, bmp.height);
+    W = info.W; H = info.H; m = info.m;
+  }
+  /* 手机浏览器对画布有内存上限（iOS 约 1670 万像素 / 边长 4096 起就可能整块变黑），
+     超过上限时等比缩小绘制；水印所有尺寸都按宽度百分比计算，缩放后比例完全一致。 */
+  const MAX_AREA = 16777216;
+  let scale = 1;
+  if (maxEdge) scale = Math.min(scale, maxEdge / Math.max(W, H));
+  if (W * H * scale * scale > MAX_AREA) scale = Math.sqrt(MAX_AREA / (W * H));
+  if (scale < 0.999) { W = Math.max(1, Math.round(W * scale)); H = Math.max(1, Math.round(H * scale)); }
+  const canvas = target || document.createElement('canvas');
+  if (canvas.width !== W) canvas.width = W;
+  if (canvas.height !== H) canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  ctx.setTransform(m[0] * scale, m[1] * scale, m[2] * scale, m[3] * scale, m[4] * scale, m[5] * scale);
+  ctx.drawImage(bmp, 0, 0, bmp.width, bmp.height);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const layout = noWatermark ? { x: 0, y: 0, w: 0, h: 0 } : (WATERMARK.draw(ctx, W, H, photo, st) || { x: 0, y: 0, w: 0, h: 0 });
+  canvas._wmLayout = layout;
+  return canvas;
+}
+function keyStatus(msg, kind) {
+  const el = $('#keyStatus');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.className = 'keyStatus' + (kind ? ' ' + kind : '');
+  el.style.display = msg ? 'block' : 'none';
+  try { el.scrollIntoView({ block: 'nearest' }); } catch (e) { }
+}
+const PROVIDER_NAMES = { baidu: '百度地图', amap: '高德地图', tencent: '腾讯地图', tianditu: '天地图', none: '不解析' };
+/* Key 相关按钮单独绑定，并在 init 最前面调用：后面任何初始化异常都不会让它们失效 */
+function bindMapKeys() {
+  const inp = $('#apiKey'), btnSave = $('#btnSaveKey'), btnTest = $('#btnTestKey');
+  if (!inp || !btnSave || !btnTest) return;
+  if (btnSave.__bound) return;
+  btnSave.__bound = true;
+
+  const remember = () => { state.keys[state.settings.provider] = inp.value.trim(); try { saveKeys(); } catch (e) { } };
+
+  inp.oninput = () => { remember(); keyStatus(''); btnSave.textContent = '保存 Key'; };
+  inp.onchange = remember;
+
+  btnSave.onclick = () => {
+    const key = inp.value.trim();
+    remember();
+    if (!key) { keyStatus('请先填写 Key 再保存', 'err'); return; }
+    btnSave.textContent = '已保存 ✓';
+    keyStatus('✓ 已保存到本机（' + (PROVIDER_NAMES[state.settings.provider] || '') + '），下次打开会自动带出', 'ok');
+    setTimeout(() => { btnSave.textContent = '保存 Key'; }, 1800);
+    setTimeout(() => { try { autoRefreshAddress(); } catch (e) { } }, 900);
+  };
+
+  btnTest.onclick = async () => {
+    const key = inp.value.trim();
+    if (!key) { keyStatus('请先填写 Key 再测试', 'err'); return; }
+    const prov = state.settings.provider;
+    if (prov === 'none') { keyStatus('当前是「不解析」，请先选一个地图服务商再测试', 'err'); return; }
+    remember();
+    const oldTxt = btnTest.textContent;
+    btnTest.disabled = true; btnTest.textContent = '测试中…';
+    keyStatus('正在用「' + (PROVIDER_NAMES[prov] || prov) + '」测试连接…', 'info');
+    try {
+      const r = await Geo.reverse(prov, key, 116.397428, 39.90923, WATERMARK.coordSystemOf({ exif: { gps: {} } }, state.settings));
+      keyStatus('✓ 连接成功：' + (r.address || '（接口返回成功）'), 'ok');
+      btnTest.textContent = '连接正常 ✓';
+      setTimeout(() => { btnTest.textContent = oldTxt; }, 1800);
+    } catch (e) {
+      keyStatus('✗ 连接失败：' + ((e && e.message) || e) + '（请确认 Key 类型与该服务商的白名单设置）', 'err');
+      btnTest.textContent = oldTxt;
+    } finally {
+      btnTest.disabled = false;
+    }
+  };
+
+  /* 「不解析」也允许填写，不再把输入框和按钮禁用掉 */
+  const syncDisabled = () => {
+    const p = state.settings.provider;
+    inp.disabled = false; btnSave.disabled = false; btnTest.disabled = false;
+    inp.placeholder = p === 'none' ? '已选择「不解析」，可切到具体服务商后再填 Key' : '填写你的 API Key（保存在本机浏览器）';
+  };
+  syncDisabled();
+  document.querySelectorAll('#providerPills button').forEach(b => {
+    if (b.__bound) return;
+    b.__bound = true;
+    b.addEventListener('click', () => setTimeout(syncDisabled, 0));
+  });
+}
+function currentPhoto() { return state.photos.find(p => p.id === state.currentId) || null; }
+/* 画布上的上一张 / 下一张 */
+function updatePhotoNav() {
+  const nav = $('#pnav'); if (!nav) return;
+  const n = state.photos.length;
+  const i = Math.max(0, state.photos.findIndex(p => p.id === state.currentId));
+  nav.classList.toggle('hide', n < 2);
+  const t = $('#navTxt'); if (t) t.textContent = n ? ((i + 1) + ' / ' + n) : '';
+  ['#navPrev', '#navNext'].forEach(sel => { const b = $(sel); if (b) b.disabled = n < 2; });
+}
+function goPhoto(delta) {
+  const n = state.photos.length;
+  if (n < 2) return;
+  const i = Math.max(0, state.photos.findIndex(p => p.id === state.currentId));
+  const j = (i + delta + n) % n;
+  state.currentId = state.photos[j].id;
+  try { renderStrip(); } catch (e) { }
+  updatePhotoNav();
+  if (schedulePreview) schedulePreview(); else renderPreview();
+}
+document.addEventListener('keydown', (e) => {
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+  if (e.key === 'ArrowLeft' && state.photos.length > 1) { e.preventDefault(); goPhoto(-1); }
+  else if (e.key === 'ArrowRight' && state.photos.length > 1) { e.preventDefault(); goPhoto(1); }
+});
+let previewTimer = null;
+/* 面板顶部的实时读数 */
+function updateLiveInfo() {
+  const el = $('#liveInfo'); if (!el) return;
+  const st = state.settings;
+  const names = { tl: '左上', tc: '上中', tr: '右上', ml: '左中', mc: '正中', mr: '右中', bl: '左下', bc: '下中', br: '右下' };
+  const pos = st.position === 'custom'
+    ? (Number(st.customX).toFixed(1) + '% / ' + Number(st.customY).toFixed(1) + '%')
+    : (names[st.position] || '左下');
+  el.textContent = pos + ' · 大小 ' + st.watermarkScale + '%';
+}
+  /* 面板顶部的实时读数 */
+function schedulePreview() {
+  try { updateLiveInfo(); } catch (e) { }
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(renderPreview, 120);
+}
+/* 画布固定、照片自适应：用 JS 算「等比装进预览框」的显示尺寸，
+   不依赖 max-height:100% 这类在安卓 WebView 里会失效的 CSS，避免照片溢出被裁成一小块。 */
+let previewRO = null;
+/* 手机浏览器（尤其 App 内置的 iOS 浏览器）里 100dvh 常常比真正能看见的区域高，
+   会导致画布底部被浏览器工具条挡住。用 visualViewport 的真实高度来定画布高度。 */
+/* 舞台高度全部用 JS 算成像素直接写内联样式：
+   安卓老内核里 100dvh 不被支持、var() 放进 calc() 也常失效，靠它们会让画布高度算错 */
+/* 面板是不是开着，以面板自身的类为准（body 上的类个别情况下会不同步） */
+function sheetOpenNow() {
+  const sheet = document.getElementById('sheetCard');
+  if (sheet) return sheet.classList.contains('open');
+  return document.body.classList.contains('sheetOpen');
+}
+let SHEET_PCT = 20;
+try { const v0 = parseInt(localStorage.getItem('wm-sheet-pct'), 10); if (v0 >= 10 && v0 <= 88) SHEET_PCT = v0; } catch (e) { }
+function stageHeightPx() {
+  const vv = window.visualViewport;
+  const h = Math.round(vv ? vv.height : (window.innerHeight || document.documentElement.clientHeight || 0));
+  const t = Math.round(vv ? vv.offsetTop : 0);
+  return { h: h, t: t };
+}
+function layoutStage() {
+  const stage = document.getElementById('stageCard');
+  const sheet = document.getElementById('sheetCard');
+  const v = stageHeightPx();
+  document.documentElement.style.setProperty('--vvh', v.h + 'px');
+  document.documentElement.style.setProperty('--vvt', v.t + 'px');
+  if (!stage) return;
+  stage.style.top = v.t + 'px';
+  const open = (sheet && sheet.classList.contains('open')) || (!sheet && document.body.classList.contains('sheetOpen'));
+  let sheetPx = 0;
+  if (open) {
+    const pct = sheet.classList.contains('peek') ? 3.2 : (sheet.classList.contains('tall') ? 88 : SHEET_PCT);
+    sheetPx = sheet.classList.contains('peek') ? 52 : Math.round(v.h * pct / 100);
+    document.body.style.setProperty('--sheetH', sheetPx + 'px');
+  }
+  if (open && sheet) sheet.style.height = Math.max(90, sheetPx) + 'px';
+  if (open) sheet.style.maxHeight = Math.max(90, sheetPx) + 'px';
+  stage.style.height = Math.max(80, v.h - sheetPx) + 'px';
+}
+function syncViewport() {
+  layoutStage();
+  refitSoon();
+}
+function previewAvail() {
+  const stage = $('#stageCard');
+  if (!stage) return { w: 0, h: 0 };
+  const r = stage.getBoundingClientRect();
+  const bar = document.querySelector('#stageCard .topBar');
+  const barH = bar ? bar.getBoundingClientRect().height : 52;
+  /* 底部给悬浮按钮留位置；面板打开时按钮被面板盖住，不用留 */
+  const reserve = sheetOpenNow() ? 10 : 96;
+  return { w: Math.max(0, r.width - 16), h: Math.max(0, r.height - barH - 12 - reserve) };
+}
+function fitPreview(canvas) {
+  if (!canvas || !canvas.width) return false;
+  let a = previewAvail();
+  /* 兜底：万一舞台还没布局好，用预览框自身的尺寸 */
+  if (a.w < 40 || a.h < 40) {
+    const box = $('#preview');
+    if (!box) return false;
+    a = { w: box.clientWidth - 16, h: box.clientHeight - 16 };
+  }
+  if (a.w < 30 || a.h < 30) return false;
+  const k = Math.min(a.w / canvas.width, a.h / canvas.height);
+  const w = Math.max(1, Math.round(canvas.width * k));
+  const h = Math.max(1, Math.round(canvas.height * k));
+  try {
+    canvas.style.setProperty('width', w + 'px', 'important');
+    canvas.style.setProperty('height', h + 'px', 'important');
+  } catch (e) {
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+  }
+  canvas.dataset.fit = w + 'x' + h;
+  return true;
+}
+function refitPreview() {
+  const box = $('#preview');
+  const c = box && box.querySelector('canvas');
+  if (!c) return false;
+  return fitPreview(c);
+}
+/* 面板滑出/收起有 0.24s 过渡，过渡过程中量的尺寸不可信：分几个时间点各补一次 */
+let refitTimers = [];
+function refitSoon() {
+  refitTimers.forEach(t => clearTimeout(t));
+  refitTimers = [0, 60, 160, 300, 500, 900].map(ms => setTimeout(refitPreview, ms));
+  requestAnimationFrame(refitPreview);
+}
+let fitWatch = null;
+function startFitWatch() {
+  if (fitWatch) return;
+  fitWatch = setInterval(() => {
+    const box = $('#preview');
+    const c = box && box.querySelector('canvas');
+    if (!c || !c.width || !c.height) return;
+    const r = c.getBoundingClientRect();
+    if (!r.width || !r.height) { fitPreview(c); return; }
+    const want = c.width / c.height, got = r.width / r.height;
+    if (Math.abs(want - got) / want > 0.03) fitPreview(c);
+    const st = document.getElementById('stageCard');
+    if (st) {
+      const v = stageHeightPx();
+      const open = sheetOpenNow();
+      const sheet = document.getElementById('sheetCard');
+      const pct = open ? (sheet.classList.contains('peek') ? 3.2 : (sheet.classList.contains('tall') ? 88 : SHEET_PCT)) : 0;
+      const wantH = Math.max(80, v.h - Math.round(v.h * pct / 100));
+      if (Math.abs(st.getBoundingClientRect().height - wantH) > 4) layoutStage();
+    }
+  }, 1000);
+}
+function watchPreviewBox() {
+  if (previewRO || typeof ResizeObserver === 'undefined') return;
+  const box = $('#preview');
+  if (!box) return;
+  previewRO = new ResizeObserver(() => { refitPreview(); });
+  previewRO.observe(box);
+}
+async function renderPreview() {
+  const photo = currentPhoto();
+  const box = $('#preview');
+  if (photo && !photo.bmp) {
+    box.innerHTML = '<div class="ph">该图片读取失败：' + escapeHtml(photo.status || '') + '<br>请换一张 JPG 照片试试</div>';
+    $('#exifBox').innerHTML = ''; $('#previewTag').textContent = '';
+    return;
+  }
+  if (!photo) { box.innerHTML = '<div class="ph">请导入照片</div>'; $('#exifBox').innerHTML = ''; $('#previewTag').textContent = ''; return; }
+  let canvas = box.querySelector('canvas');
+  if (!canvas) { canvas = document.createElement('canvas'); box.innerHTML = ''; box.appendChild(canvas); }
+  await drawPhoto(photo, state.settings, canvas, 2560);
+  /* 安卓 WebView 个别机型把 ImageBitmap 画成整块黑：发现右上角全黑就换 <img> 重画一次 */
+  if (!photo.__imgTried && photo.bmp && typeof ImageBitmap !== 'undefined' && photo.bmp instanceof ImageBitmap) {
+    if (regionLuma(canvas) < 2) {
+      photo.__imgTried = true;
+      const img = await decodeViaImg(photo.file);
+      if (img && img.naturalWidth) {
+        photo.bmp = img;
+        photo.browserApplied = true;
+        photo.orientation = 1;
+        photo.width = img.naturalWidth;
+        photo.height = img.naturalHeight;
+        await drawPhoto(photo, state.settings, canvas, 2560);
+        if (regionLuma(canvas) < 2) toast('#mapMsg', 'err', '这张照片在手机上解码失败（画面全黑），请在相册里另存为 JPG 后再导入');
+      }
+    }
+  }
+  syncViewport();
+  fitPreview(canvas);
+  watchPreviewBox();
+  refitSoon();
+  attachDrag(canvas);
+  $('#previewTag').textContent = canvas.width + '×' + canvas.height;
+  updatePhotoNav();
+  const sc0 = $('#stageCount');
+  if (sc0) sc0.textContent = (Math.max(0, state.photos.findIndex(p => p.id === state.currentId)) + 1) + ' / ' + state.photos.length + ' · ' + canvas.width + '×' + canvas.height;
+  renderExifInfo(photo);
+}
+
+/* ---- 在预览图上直接拖动水印调整位置 ---- */
+function attachDrag(canvas) {
+  const layout = canvas._wmLayout;
+  if (!layout) return;
+  const st = state.settings;
+  let dragging = false, startX = 0, startY = 0, origX = 0, origY = 0, swipe = null;
+  canvas.style.touchAction = 'none';
+  canvas.style.cursor = 'grab';
+  const scaleOf = () => (canvas.clientWidth || canvas.width) / canvas.width;
+  canvas.addEventListener('pointerdown', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const k = scaleOf();
+    const ix = (e.clientX - rect.left) / k, iy = (e.clientY - rect.top) / k;
+    const tol = Math.max(12, canvas.width * 0.012);
+    if (ix < layout.x - tol || ix > layout.x + layout.w + tol ||
+        iy < layout.y - tol || iy > layout.y + layout.h + tol) {
+      if (state.photos.length > 1) swipe = { x: e.clientX, y: e.clientY, t: Date.now() };
+      return;
+    }
+    dragging = true;
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) { }
+    canvas.style.cursor = 'grabbing';
+    startX = e.clientX; startY = e.clientY;
+    origX = layout.x; origY = layout.y;
+    e.preventDefault();
+  });
+  canvas.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const k = scaleOf();
+    const dx = (e.clientX - startX) / k, dy = (e.clientY - startY) / k;
+    let nx = clamp(origX + dx, 0, canvas.width - layout.w);
+    let ny = clamp(origY + dy, 0, canvas.height - layout.h);
+    if (st.snapEdge) {
+      const m = canvas.width * st.marginScale / 100;
+      if (nx < m * 0.6) nx = m;
+      if (canvas.width - (nx + layout.w) < m * 0.6) nx = Math.max(0, canvas.width - layout.w - m);
+      if (ny < m * 0.6) ny = m;
+      if (canvas.height - (ny + layout.h) < m * 0.6) ny = Math.max(0, canvas.height - layout.h - m);
+    }
+    st.position = 'custom';
+    st.customX = +(nx / canvas.width * 100).toFixed(2);
+    st.customY = +(ny / canvas.height * 100).toFixed(2);
+    syncCustomInputs();
+    schedulePreview();
+  });
+  const end = () => { dragging = false; swipe = null; canvas.style.cursor = 'grab'; };
+  canvas.addEventListener('pointerup', (e) => {
+    if (!dragging && swipe) {
+      const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y, dt = Date.now() - swipe.t;
+      if (Math.abs(dx) > 56 && Math.abs(dy) < 70 && dt < 900) goPhoto(dx < 0 ? 1 : -1);
+    }
+    end();
+  });
+  canvas.addEventListener('pointercancel', end);
+}
+function syncCustomInputs() {
+  const st = state.settings;
+  if ($('#customX')) $('#customX').value = st.customX;
+  if ($('#customY')) $('#customY').value = st.customY;
+  const box = $('#customPosBox');
+  if (box) box.classList.toggle('hidden', st.position !== 'custom');
+  updatePosGrid();
+}
+function updatePosGrid() {
+  const st = state.settings;
+  $$('#posGrid .pos').forEach(b => b.classList.toggle('on', b.dataset.pos === st.position));
+}
+function renderExifInfo(photo) {
+  const t = (photo.exif && photo.exif.tags) || {};
+  const g = (photo.exif && photo.exif.gps) || {};
+  const rows = [
+    ['文件', photo.name],
+    ['EXIF', photo.exif && photo.exif.hasExif ? '已读取' : '无 EXIF 信息'],
+    ['设备', [t['Make'], t['Model']].filter(Boolean).join(' ') || '—'],
+    ['拍摄时间', t['Exif.DateTimeOriginal'] || t['DateTimeOriginal'] || '—'],
+    ['GPS', (g.lon !== null && g.lon !== undefined) ? fmt(g.lon, 6) + ', ' + fmt(g.lat, 6) + ' (WGS84)' : '无'],
+    ['地址', photo.address || '未解析'],
+    ['尺寸', photo.width + '×' + photo.height]
+  ];
+  $('#exifBox').innerHTML = rows.map(r => '<span>' + r[0] + '</span><b>' + escapeHtml(String(r[1])) + '</b>').join('');
+}
+function escapeHtml(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+/* ---------------- 导入照片 ---------------- */
+async function handleFiles(files) {
+  const list = Array.from(files).filter(f => /image/i.test(f.type) || /\.(jpe?g|png|heic|heif|webp)$/i.test(f.name));
+  if (!list.length) { toast('#mapMsg', 'err', '没有可识别的图片文件'); return; }
+  for (const file of list) {
+    const id = 'p' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+    const photo = { id: id, name: file.name, file: file, address: '', status: '读取中…', buffer: null, exif: null, bmp: null };
+    state.photos.push(photo);
+    state.currentId = id;
+    try {
+      const buffer = await file.arrayBuffer();
+      photo.buffer = buffer;
+      const bytes = new Uint8Array(buffer);
+      photo.exif = Exif.parse(bytes);
+      photo.rawSize = jpegRawSize(buffer);
+      const dec = await decodeImage(file, photo.exif, photo.rawSize);
+      photo.bmp = dec.bmp; photo.orientation = dec.orientation; photo.browserApplied = dec.browserApplied;
+      photo.width = photo.bmp.width; photo.height = photo.bmp.height;
+      photo.status = (photo.exif.gps && photo.exif.gps.lon !== null) ? '有GPS' : '无GPS';
+      /* 长截图识别：相机原片不会有这么极端的长宽比 */
+      const ar = photo.width / Math.max(1, photo.height);
+      if (ar > 3.5 || ar < 1 / 3.5) {
+        photo.longShot = true;
+        toast('#mapMsg', 'warn', '这张图是 ' + photo.width + '×' + photo.height +
+          ' 的长截图（不是相机原片），导出会保留整张长图和空白。要普通照片请导入相册里的原片。');
+      } else photo.longShot = false;
+    } catch (e) {
+      photo.status = '读取失败：' + e.message;
+    }
+    startFitWatch();
+  layoutStage();
+  renderStrip();
+    if (photo.exif && photo.exif.hasExif && state.settings.autoGeo) resolveAddress(photo);
+  }
+  renderStrip();
+  await renderPreview();
+  if (window.__closeImport) window.__closeImport();
+}
+function renderStrip() {
+  const strip = $('#strip');
+  strip.innerHTML = '';
+  state.photos.forEach(p => {
+    const d = document.createElement('div');
+    d.className = 'thumb' + (p.id === state.currentId ? ' sel' : '');
+    const img = document.createElement('img');
+    if (p.bmp) {
+      const c = document.createElement('canvas');
+      const s = 148;
+      const scale = Math.min(s / p.bmp.width, s / p.bmp.height);
+      c.width = Math.max(1, Math.round(p.bmp.width * scale));
+      c.height = Math.max(1, Math.round(p.bmp.height * scale));
+      c.getContext('2d').drawImage(p.bmp, 0, 0, c.width, c.height);
+      img.src = c.toDataURL('image/jpeg', 0.7);
+    }
+    d.appendChild(img);
+    const n = document.createElement('span'); n.className = 'n'; n.textContent = state.photos.indexOf(p) + 1; d.appendChild(n);
+    if (p.exif && p.exif.gps && p.exif.gps.lon !== null) { const g = document.createElement('span'); g.className = 'gps'; g.textContent = 'GPS'; d.appendChild(g); }
+    d.title = p.name + ' · ' + p.status;
+    d.onclick = () => { state.currentId = p.id; renderStrip(); renderPreview(); };
+    strip.appendChild(d);
+  });
+  $('#fileCount').textContent = state.photos.length ? ('已导入 ' + state.photos.length + ' 张') : '未导入';
+  const sc = $('#stageCount'); if (sc) sc.textContent = state.photos.length ? (Math.max(0, state.photos.findIndex(p => p.id === state.currentId)) + 1) + ' / ' + state.photos.length : '未导入';
+  const ic = $('#importCount'); if (ic) ic.textContent = state.photos.length ? state.photos.length + ' 张' : '还没有照片';
+  updatePhotoNav();
+}
+
+/* ---------------- 地址解析 ---------------- */
+async function resolveAddress(photo) {
+  const st = state.settings;
+  if (st.provider === 'none') return;
+  if (st.manualAddr) { photo.address = st.manualAddr; return; }
+  const key = state.keys[st.provider];
+  if (!key) { photo.status = '未设置 API Key'; renderStrip(); return; }
+  const g = photo.exif && photo.exif.gps;
+  let lon = g && g.lon, lat = g && g.lat;
+  if (st.manualLon !== '' && st.manualLat !== '') { lon = parseFloat(st.manualLon); lat = parseFloat(st.manualLat); }
+  if (lon === null || lon === undefined || isNaN(lon)) { photo.status = '无GPS坐标'; renderStrip(); return; }
+  photo.status = '解析地址中…'; renderStrip();
+  try {
+    const r = await Geo.reverse(st.provider, key, lon, lat, WATERMARK.coordSystemOf(photo, st));
+    photo.address = r.address;
+    photo.addressCoords = r;
+    photo.status = '地址已解析';
+  } catch (e) {
+    photo.status = '地址解析失败：' + e.message;
+  }
+  renderStrip();
+  if (photo.id === state.currentId) renderPreview();
+}
+/* 切换服务商 / 保存 Key / 换坐标系后，自动重新解析地址并重绘水印 */
+async function autoRefreshAddress() {
+  const st = state.settings;
+  if (st.provider === 'none') { toast('#mapMsg', 'info', '已设为「不解析」，地址请手动填写'); return; }
+  const name = (Geo.PROVIDERS[st.provider] || {}).name || '';
+  if (!state.photos.length) { toast('#mapMsg', 'info', '已切换到' + name + '，导入照片后自动解析地址'); return; }
+  const key = (state.keys[st.provider] || '').trim();
+  if (!key) { toast('#mapMsg', 'info', '请先填写' + name + '的 Key，填好后会自动解析'); return; }
+  await resolveAllAddresses();
+}
+async function resolveAllAddresses() {
+  toast('#mapMsg', 'info', '正在解析地址…');
+  let okN = 0, failN = 0, lastErr = '';
+  for (const p of state.photos) {
+    await resolveAddress(p);
+    if (p.status === '地址已解析') okN++;
+    else if (String(p.status).indexOf('失败') >= 0) { failN++; lastErr = String(p.status).replace('地址解析失败：', ''); }
+  }
+  if (failN) toast('#mapMsg', 'warn', '解析失败：' + lastErr);
+  else if (okN) toast('#mapMsg', 'ok', '地址解析完成（' + okN + ' 张）');
+  else toast('#mapMsg', 'warn', '没有可解析的照片（缺 GPS 或未填 Key）');
+  await renderPreview();
+}
+
+/* ---------------- 导出 ---------------- */
+function exifNow() {
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}:${p(d.getMonth() + 1)}:${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+/* ---------- 导出：尺寸可选 + 逐级自检 ---------- */
+/* 取画布「右上角 40% 区域」的平均亮度：避开默认左下角的水印，
+   用来判断这张图是不是整块画黑了（安卓 WebView 上 ImageBitmap 偶发画不出来）。 */
+function regionLuma(src) {
+  try {
+    const c = document.createElement('canvas');
+    c.width = 24; c.height = 24;
+    const x = c.getContext('2d', { willReadFrequently: true });
+    const sw = Math.max(1, Math.round(src.width * 0.4));
+    const sh = Math.max(1, Math.round(src.height * 0.4));
+    x.drawImage(src, Math.round(src.width * 0.55), 0, sw, sh, 0, 0, 24, 24);
+    const d = x.getImageData(0, 0, 24, 24).data;
+    let sum = 0;
+    for (let i = 0; i < d.length; i += 4) sum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    return sum / (24 * 24);
+  } catch (e) { return -1; }
+}
+/* 用 <img> 重新解码：安卓 WebView 上比 ImageBitmap 稳，且浏览器自己会按 EXIF 转正 */
+function decodeViaImg(file) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const done = () => { try { URL.revokeObjectURL(url); } catch (e) { } resolve(img); };
+      if (img.decode) img.decode().then(done).catch(done); else done();
+    };
+    img.onerror = () => { try { URL.revokeObjectURL(url); } catch (e) { } resolve(null); };
+    img.src = url;
+  });
+}
+function thumbLuma(src) {
+  try {
+    const c = document.createElement('canvas');
+    c.width = 32; c.height = 32;
+    const x = c.getContext('2d', { willReadFrequently: true });
+    x.drawImage(src, 0, 0, 32, 32);
+    const d = x.getImageData(0, 0, 32, 32).data;
+    let sum = 0;
+    for (let i = 0; i < d.length; i += 4) sum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    return sum / (32 * 32);
+  } catch (e) { return -1; }
+}
+function dataURLToBlob(du, type) {
+  const bin = atob(du.split(',')[1]);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: type });
+}
+function isIOS() {
+  const ua = navigator.userAgent || '';
+  return /iP(hone|ad|od)/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+/* 编码成图片文件。
+   ① 游离（未挂载）的 canvas 在部分 iOS 版本上编码结果全黑 → 先挂到屏幕外再编码；
+   ② iOS 上 toBlob 曾出现整张黑图 → 优先用 toDataURL，失败再退回 toBlob。 */
+async function encodeCanvas(canvas, type, q) {
+  const host = document.createElement('div');
+  host.setAttribute('style', 'position:fixed;left:-99999px;top:0;width:2px;height:2px;overflow:hidden;opacity:0.01;pointer-events:none');
+  let attached = false;
+  if (!canvas.isConnected) {
+    try { document.body.appendChild(host); host.appendChild(canvas); attached = true; } catch (e) { }
+  }
+  const tryBlob = () => new Promise(r => { try { canvas.toBlob(b => r(b), type, q); } catch (e) { r(null); } });
+  const tryData = () => { try { const du = canvas.toDataURL(type, q); return (du && du.length > 64) ? dataURLToBlob(du, type) : null; } catch (e) { return null; } };
+  let blob = null;
+  try {
+    if (isIOS()) {
+      blob = tryData() || await tryBlob() || tryData();
+    } else {
+      blob = await tryBlob() || tryData();
+    }
+  } finally {
+    if (attached) { try { host.removeChild(canvas); } catch (e) { } }
+    try { host.remove(); } catch (e) { }
+  }
+  return blob;
+}
+async function decodeBlob(blob) {
+  if (window.createImageBitmap) {
+    try { return await createImageBitmap(blob, { resizeWidth: 64, resizeHeight: 64, resizeQuality: 'low' }); } catch (e) { }
+    try { return await createImageBitmap(blob); } catch (e) { }
+  }
+  return await new Promise((res, rej) => {
+    const img = new Image();
+    const url = URL.createObjectURL(blob);
+    img.onload = () => { URL.revokeObjectURL(url); res(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('导出结果无法解码')); };
+    img.src = url;
+  });
+}
+/* 位图有时在手机上被系统回收，重画会得到黑图：重新解码一次 */
+async function refreshBitmap(photo) {
+  if (!photo || !photo.file) return false;
+  try {
+    const dec = await decodeImage(photo.file, photo.exif, photo.rawSize || (photo.buffer ? jpegRawSize(photo.buffer) : null));
+    photo.bmp = dec.bmp; photo.orientation = dec.orientation; photo.browserApplied = dec.browserApplied;
+    return true;
+  } catch (e) { return false; }
+}
+function injectExif(blob, photo, st) {
+  try {
+    if (!(photo.exif && photo.exif.segment && photo.buffer)) return blob;
+    const buf = new Uint8Array(photo.buffer);
+    const seg = photo.exif.segment;
+    const exifBytes = buf.subarray(seg.dataStart, seg.segEnd);
+    const tiffInExif = seg.tiffStart - seg.dataStart;
+    const opts = { orientation: (photo.browserApplied || st.fixOrientation) ? 1 : (photo.orientation || 1) };
+    if (st.autoAddTime) opts.now = exifNow();
+    const patched = Exif.patchSegment(exifBytes, tiffInExif, opts);
+    const app1 = Exif.buildApp1Segment(patched, 0);
+    return blob.arrayBuffer().then(ab => new Blob([Exif.injectIntoJpeg(new Uint8Array(ab), app1)], { type: 'image/jpeg' }));
+  } catch (e) {
+    return blob; /* 写坏了就用原始 JPEG，不让整次导出失败 */
+  }
+}
+/* 找出画布上非空白内容的外框（先缩到 600px 内再判断，手机上也不卡） */
+function contentBox(canvas) {
+  try {
+    const k = Math.min(1, 600 / Math.max(canvas.width, canvas.height));
+    const tw = Math.max(1, Math.round(canvas.width * k)), th = Math.max(1, Math.round(canvas.height * k));
+    const t = document.createElement('canvas'); t.width = tw; t.height = th;
+    const x = t.getContext('2d', { willReadFrequently: true });
+    x.drawImage(canvas, 0, 0, tw, th);
+    const d = x.getImageData(0, 0, tw, th).data;
+    const bg = [d[0], d[1], d[2]];
+    let minX = tw, minY = th, maxX = -1, maxY = -1;
+    for (let y = 0; y < th; y++) {
+      const row = y * tw * 4;
+      for (let xx = 0; xx < tw; xx++) {
+        const i = row + xx * 4;
+        if (Math.abs(d[i] - bg[0]) + Math.abs(d[i + 1] - bg[1]) + Math.abs(d[i + 2] - bg[2]) > 24) {
+          if (xx < minX) minX = xx;
+          if (xx > maxX) maxX = xx;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+    if (maxX < 0) return null;
+    const pad = 2;
+    const x0 = Math.max(0, Math.floor(minX / k) - pad);
+    const y0 = Math.max(0, Math.floor(minY / k) - pad);
+    const x1 = Math.min(canvas.width, Math.ceil((maxX + 1) / k) + pad);
+    const y1 = Math.min(canvas.height, Math.ceil((maxY + 1) / k) + pad);
+    return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+  } catch (e) { return null; }
+}
+/* 按指定长边导出一次，返回结果与诊断数据 */
+async function exportAtSize(photo, format, longEdge, useExif, crop) {
+  const st = state.settings;
+  const type = format === 'png' ? 'image/png' : 'image/jpeg';
+  const q = Math.min(1, Math.max(0.3, (parseInt(st.jpegQuality, 10) || 92) / 100));
+  let canvas = null;
+  try {
+    if (crop) {
+      /* 先在原分辨率下裁出照片区域，再按 longEdge 缩放：
+         否则 532×10000 会先被缩成 136×2560，裁完只剩手指甲大的缩略图 */
+      const full = await drawPhoto(photo, st, null, 0, true);
+      const box = contentBox(full);
+      const removed = box ? 1 - (box.w * box.h) / (full.width * full.height) : 0;
+      if (box && removed > 0.2) {
+        let k = 1;
+        if (longEdge && Math.max(box.w, box.h) > longEdge) k = longEdge / Math.max(box.w, box.h);
+        const out = document.createElement('canvas');
+        out.width = Math.max(1, Math.round(box.w * k));
+        out.height = Math.max(1, Math.round(box.h * k));
+        out.getContext('2d').drawImage(full, box.x, box.y, box.w, box.h, 0, 0, out.width, out.height);
+        try { full.width = 0; full.height = 0; } catch (e) { }
+        WATERMARK.draw(out.getContext('2d'), out.width, out.height, photo, st);
+        canvas = out;
+      } else {
+        try { full.width = 0; full.height = 0; } catch (e) { }
+        canvas = await drawPhoto(photo, st, null, longEdge || 0);
+      }
+    } else {
+      canvas = await drawPhoto(photo, st, null, longEdge || 0);
+    }
+  }
+  catch (e) { return { ok: false, err: '绘制失败：' + e.message, w: 0, h: 0, srcLuma: -1, outLuma: -1, bytes: 0 }; }
+  const w = canvas.width, h = canvas.height;
+  if (!w || !h) return { ok: false, err: '画布尺寸为 0', w: 0, h: 0, srcLuma: -1, outLuma: -1, bytes: 0 };
+  let srcLuma = thumbLuma(canvas);
+  if (srcLuma >= 0 && srcLuma < 1) {
+    /* 画布本身全黑 —— 位图失效，重新解码后再画一次 */
+    if (await refreshBitmap(photo)) {
+      try { canvas = await drawPhoto(photo, st, canvas, longEdge || 0); srcLuma = thumbLuma(canvas); } catch (e) { }
+    }
+  }
+  const encMode = isIOS() ? 'iOS(toDataURL 优先)' : 'toBlob';
+  let blob = await encodeCanvas(canvas, type, q);
+  if (!blob) return { ok: false, err: '生成图片失败（画布超出手机内存）', w, h, srcLuma, outLuma: -1, bytes: 0 };
+  if (type === 'image/jpeg' && useExif && st.keepExif) blob = await injectExif(blob, photo, st);
+  let bmp = null;
+  try { bmp = await decodeBlob(blob); } catch (e) { }
+  let outLuma = bmp ? thumbLuma(bmp) : -1;
+  /* iOS 上新解码的图偶尔第一次量到全黑，停一下再量，避免把好文件误判成黑图 */
+  if (bmp && outLuma >= 0 && outLuma < 3 && srcLuma > 6) {
+    await new Promise(r => setTimeout(r, 150));
+    const again = thumbLuma(bmp);
+    if (again > outLuma) outLuma = again;
+  }
+  const bad = !bmp || (outLuma >= 0 && outLuma < 3 && srcLuma > 6);
+  try { canvas.width = 0; canvas.height = 0; } catch (e) { }
+  return {
+    ok: !bad, bad: bad, blob: blob, w, h, srcLuma, outLuma, bytes: blob ? blob.size : 0, enc: encMode,
+    err: !bmp ? '导出结果无法解码' : (bad ? '导出结果全黑' : '')
+  };
+}
+const EXPORT_LADDER = [0, 4096, 2560, 1920, 1600, 1280, 1024];
+async function exportPhoto(photo, format, download, opts) {
+  const st = state.settings;
+  const base = photo.name.replace(/\.[^.]+$/, '');
+  const name = base + '_水印.' + (format === 'png' ? 'png' : 'jpg');
+  const want = parseInt(st.exportSize, 10) || 0;
+  const steps = want ? EXPORT_LADDER.filter(v => v && v <= want) : EXPORT_LADDER.slice();
+  let last = null;
+  for (let i = 0; i < steps.length; i++) {
+    for (const exif of [true, false]) {   /* 先带 EXIF，失败再关掉 EXIF 重试同尺寸 */
+      const r = await exportAtSize(photo, format, steps[i], exif);
+      if (r.ok) {
+        const out = { name: name, blob: r.blob, width: r.w, height: r.h, saved: null };
+        if (download !== false) {
+          const sv = await saveBlob(r.blob, name);
+          out.saved = sv;
+          /* 单张保存失败时，退回到「预览图 + 分享/长按保存」，不让用户白等 */
+          if (!sv.ok && !(opts && opts.silent)) {
+            try { showSaveResult(r.blob, name, r.w + ' × ' + r.h, true); } catch (e) { }
+            if (sv.err) toast('#mapMsg', 'err', sv.err);
+          }
+        }
+        return out;
+      }
+      last = r;
+      if (r.err === '导出结果全黑' || r.err === '导出结果无法解码') break; /* 尺寸问题，直接降档 */
+    }
+  }
+  const e = new Error(last ? (last.err + '（' + last.w + '×' + last.h + '）') : '导出失败');
+  e.detail = last;
+  throw e;
+}
+async function saveBlob(out, name) {
+  /* 原生通道：真的写进相册才算成功 */
+  if (window.NativeBridge && typeof window.NativeBridge.saveFile === 'function') {
+    try {
+      const r = await window.NativeBridge.saveFile(out, name);
+      if (r === false) return { ok: false, err: '系统保存被拒绝' };
+      if (typeof r === 'string' && /^err/i.test(r)) return { ok: false, err: r.replace(/^err:?/i, '') || '写入相册失败' };
+      return { ok: true, via: 'native' };
+    } catch (e) {
+      return { ok: false, err: '写入相册失败：' + ((e && e.message) || e || '未知错误') };
+    }
+  }
+  /* 浏览器通道 */
+  try {
+    const url = URL.createObjectURL(out);
+    const a = document.createElement('a');
+    a.href = url; a.download = name; a.style.display = 'none';
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1500);
+    return { ok: true, via: 'download' };
+  } catch (e) {
+    return { ok: false, err: '浏览器下载失败：' + ((e && e.message) || e) };
+  }
+}
+
+/* ---------- 批量导出：逐张导出 + 逐张核对 ---------- */
+async function batchExport(photoList, btn) {
+  const res = [];
+  for (let i = 0; i < photoList.length; i++) {
+    const p = photoList[i];
+    if (btn) btn.innerHTML = '<span class="spin"></span> 导出中 ' + (i + 1) + '/' + photoList.length;
+    try {
+      const r = await exportPhoto(p, state.settings.exportFormat, true, { silent: true });
+      const sv = r.saved || { ok: false, err: '未知错误' };
+      res.push({ name: r.name, ok: !!sv.ok, err: sv.ok ? '' : sv.err, photo: p });
+    } catch (e) {
+      res.push({ name: p.name, ok: false, err: (e && e.message) || '导出失败', photo: p });
+    }
+    await new Promise(r => setTimeout(r, 180));
+  }
+  return res;
+}
+function showBatchResult(res, retry) {
+  let m = document.getElementById('batchMask');
+  if (!m) { m = document.createElement('div'); m.id = 'batchMask'; m.className = 'modalMask'; document.body.appendChild(m); }
+  m.innerHTML = '';
+  const box = document.createElement('div'); box.className = 'modalBox';
+  const head = document.createElement('div'); head.className = 'mHead';
+  const ttl = document.createElement('span'); ttl.textContent = '批量导出结果'; head.appendChild(ttl);
+  const cls = document.createElement('button'); cls.className = 'dClose'; cls.textContent = '×'; cls.onclick = () => m.classList.remove('on'); head.appendChild(cls);
+  box.appendChild(head);
+  const body = document.createElement('div'); body.className = 'mBody';
+  const okN = res.filter(r => r.ok).length, bad = res.filter(r => !r.ok);
+  const sum = document.createElement('div');
+  sum.style.cssText = 'font-size:14px;font-weight:700;margin-bottom:10px;color:' + (bad.length ? '#ffb454' : '#4ad991');
+  sum.textContent = bad.length ? ('成功 ' + okN + ' 张，失败 ' + bad.length + ' 张') : ('全部保存成功：' + okN + ' 张');
+  body.appendChild(sum);
+  const list = document.createElement('div'); list.style.cssText = 'max-height:42vh;overflow:auto';
+  res.forEach(r => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:8px;font-size:12.5px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.07);color:' + (r.ok ? '#b8e6cd' : '#ff9a9a');
+    const ic = document.createElement('span'); ic.textContent = r.ok ? '✓' : '✗'; row.appendChild(ic);
+    const nm = document.createElement('span'); nm.style.cssText = 'flex:1;word-break:break-all'; nm.textContent = r.name; row.appendChild(nm);
+    const st = document.createElement('span'); st.textContent = r.ok ? '已保存' : r.err; row.appendChild(st);
+    list.appendChild(row);
+  });
+  body.appendChild(list);
+  if (bad.length && retry) {
+    const rb = document.createElement('button'); rb.className = 'btn'; rb.style.marginTop = '12px';
+    rb.textContent = '重试失败的 ' + bad.length + ' 张';
+    rb.onclick = () => { m.classList.remove('on'); retry(); };
+    body.appendChild(rb);
+  }
+  const done = document.createElement('button'); done.className = 'btn primary'; done.textContent = '完成';
+  done.onclick = () => m.classList.remove('on');
+  body.appendChild(done);
+  box.appendChild(body);
+  m.appendChild(box);
+  m.classList.add('on');
+}
+
+/* ---------- 导出结果：先给用户看，再让他长按/分享保存 ---------- */
+function showSaveResult(blob, name, meta, ok) {
+  const url = URL.createObjectURL(blob);
+  $('#saveImg').src = url;
+  $('#saveMeta').textContent = meta || '';
+  $('#saveName').textContent = name;
+  const warn = $('#saveWarn');
+  if (warn) {
+    if (ok === false) { warn.textContent = '提示：自检没通过（可能是检测误差）。图片照样能存，先存下来看看实际效果。'; warn.style.display = 'block'; }
+    else { warn.style.display = 'none'; }
+  }
+  const canShare = !!(navigator.canShare && navigator.canShare({ files: [new File([blob], name, { type: blob.type || 'image/jpeg' })] }));
+  const btn = $('#saveShare');
+  btn.textContent = canShare ? '保存到相册（系统分享）' : '下载图片';
+  btn.disabled = false;
+  btn.onclick = async () => {
+    try {
+      if (canShare) {
+        await navigator.share({ files: [new File([blob], name, { type: blob.type || 'image/jpeg' })], title: name });
+        return;
+      }
+    } catch (e) { }
+    try {
+      await saveBlob(blob, name);
+      toast('#mapMsg', 'ok', '已保存 ' + name);
+    } catch (e) {
+      toast('#mapMsg', 'err', '保存失败，请在新窗口里长按图片保存');
+    }
+  };
+  const open = $('#saveOpen');
+  if (open) { open.href = url; open.style.display = 'flex'; }
+  $('#saveMask').classList.add('on');
+  $('#saveDone').onclick = () => {
+    $('#saveMask').classList.remove('on');
+    try { URL.revokeObjectURL(url); } catch (e) { }
+  };
+}
+/* 一键保存：不弹尺寸框、不做降档循环，按设置里的尺寸直接出图并给保存面板 */
+async function quickSave() {
+  const p = currentPhoto();
+  if (!p || !p.bmp) { toast('#mapMsg', 'err', '请先导入照片'); return; }
+  const st = state.settings;
+  const fmt = st.exportFormat === 'png' ? 'png' : 'jpeg';
+  const want = parseInt(st.exportSize, 10) || 2560;
+  toast('#mapMsg', 'ok', '正在生成…');
+  let r = null;
+  try { r = await exportAtSize(p, fmt, want, st.keepExif !== false, !!p.longShot); } catch (e) { }
+  if (!r || !r.blob) {
+    try { r = await exportAtSize(p, fmt, Math.min(1600, want), false, !!p.longShot); } catch (e) { }
+  }
+  if (!r || !r.blob) { toast('#mapMsg', 'err', '生成失败：' + ((r && r.err) || '内存不足')); return; }
+  const name = p.name.replace(/\.[^.]+$/, '') + '_水印.' + (fmt === 'png' ? 'png' : 'jpg');
+  showSaveResult(r.blob, name, r.w + ' × ' + r.h + ' · ' + Math.round(r.bytes / 1024) + 'KB' + (r.ok ? ' · 自检通过' : ''), r.ok);
+}
+/* ---------- 导出尺寸选择弹窗 ---------- */
+let expFormat = 'jpeg';
+function photoAspect(photo) {
+  const w = photo.width || (photo.bmp && photo.bmp.width) || 4;
+  const h = photo.height || (photo.bmp && photo.bmp.height) || 3;
+  return w / h;
+}
+function openExportDialog(format) {
+  const p = currentPhoto();
+  if (!p) { toast('#mapMsg', 'warn', '请先导入照片'); return; }
+  expFormat = format || state.settings.exportFormat || 'jpeg';
+  const aspect = photoAspect(p);
+  const srcLong = Math.max(p.width || 0, p.height || 0) || Math.round(Math.max(p.bmp.width, p.bmp.height));
+  const want = parseInt(state.settings.exportSize, 10) || 0;
+  const cands = [];
+  const push = v => { if (v >= 640 && v <= srcLong && cands.indexOf(v) < 0) cands.push(v); };
+  push(srcLong);
+  [4096, 3072, 2560, 1920, 1600, 1280, 1024, 800].forEach(push);
+  cands.sort((a, b) => b - a);
+  const box = $('#expList');
+  box.innerHTML = '';
+  cands.forEach(edge => {
+    const w = aspect >= 1 ? edge : Math.max(1, Math.round(edge * aspect));
+    const h = aspect >= 1 ? Math.max(1, Math.round(edge / aspect)) : edge;
+    const rec = (want ? edge === Math.min(want, srcLong) : edge === 2560);
+    const btn = document.createElement('button');
+    btn.className = 'mOpt';
+    btn.innerHTML = '<span><b>' + (edge === srcLong ? '原图 ' : '') + w + ' × ' + h + '</b>' +
+      (edge === srcLong ? '' : '<small>　长边 ' + edge + (rec ? ' · 推荐' : '') + '</small>') + '</span><span class="mo">→</span>';
+    btn.onclick = () => runDialogExport(btn, edge, $('#expCrop') ? $('#expCrop').checked : false);
+    box.appendChild(btn);
+  });
+  const fmtName = expFormat === 'png' ? 'PNG' : 'JPEG';
+  document.querySelector('#expModal .mHead span').textContent = '选择导出尺寸 · ' + fmtName;
+  if ($('#expPng')) $('#expPng').textContent = expFormat === 'png' ? '改用 JPEG 导出' : '改用 PNG 导出（JPEG 编码异常时的备用方案）';
+  $('#expInfo').innerHTML = '当前照片 ' + Math.round(p.width || 0) + ' × ' + Math.round(p.height || 0) +
+    '　·　版本 ' + APP_VER +
+    '<br>尺寸越小越不容易在手机上导出失败，水印比例与位置不变。';
+  if ($('#expExif')) $('#expExif').checked = state.settings.keepExif !== false;
+  if ($('#expCrop')) $('#expCrop').checked = !!p.longShot;
+  $('#expHint').textContent = '点任意一档即按该尺寸导出，并会当场自检；若显示失败，请把下面那行诊断数字发给我。';
+  $('#expModal').classList.add('on');
+}
+function closeExportDialog() { $('#expModal').classList.remove('on'); }
+async function runDialogExport(btn, edge, crop) {
+  const p = currentPhoto();
+  if (!p) return;
+  const old = btn.innerHTML;
+  btn.disabled = true; btn.classList.add('busy');
+  btn.innerHTML = '<span><b>' + old.replace(/<[^>]+>/g, '') + '</b></span><span class="mo"><span class="spin"></span></span>';
+  let r = await exportAtSize(p, expFormat, edge, true, crop);
+  if (!r.ok && state.settings.keepExif) r = await exportAtSize(p, expFormat, edge, false, crop);
+  if (r.ok) {
+    const name = p.name.replace(/\.[^.]+$/, '') + '_水印.' + (expFormat === 'png' ? 'png' : 'jpg');
+    showSaveResult(r.blob, name, r.w + ' × ' + r.h + ' · ' + Math.round(r.bytes / 1024) + 'KB' + (r.ok ? ' · 自检通过' : ''), r.ok);
+    btn.className = 'mOpt ok';
+    let thumb = '';
+    try { thumb = '<img class="mThumb" alt="" src="' + URL.createObjectURL(r.blob) + '">'; } catch (e) { }
+    btn.innerHTML = '<span class="mrow">' + thumb + '<span><b>' + r.w + ' × ' + r.h + ' 已导出</b>' +
+      '<small>　文件自检通过 · ' + Math.round(r.bytes / 1024) + 'KB</small></span></span><span class="mo">✓</span>';
+    toast('#mapMsg', 'ok', '已导出 ' + r.w + '×' + r.h + '（' + Math.round(r.bytes / 1024) + 'KB）');
+    setTimeout(() => { closeExportDialog(); btn.disabled = false; }, 900);
+  } else {
+    btn.className = 'mOpt bad'; btn.disabled = false;
+    btn.innerHTML = '<span><b>' + r.w + ' × ' + r.h + ' 失败</b><small>' + (r.err || '') + '</small></span><span class="mo">✗</span>';
+    $('#expHint').textContent = '诊断（v' + APP_VER + '）：画布亮度 ' + (r.srcLuma >= 0 ? r.srcLuma.toFixed(1) : '不可用') +
+      ' · 文件 ' + Math.round(r.bytes / 1024) + 'KB · 解码亮度 ' + (r.outLuma >= 0 ? r.outLuma.toFixed(1) : '解码失败') +
+      ' · 编码 ' + (r.enc || '?') + '。换更小的尺寸，或关掉「写入 EXIF」再试。';
+  }
+}
+/* ---------------- 提示 ---------------- */
+function toast(sel, type, text) {
+  const el = $(sel);
+  if (!el) return;
+  el.innerHTML = '<div class="msg ' + type + '">' + escapeHtml(text) + '</div>';
+  if (type === 'ok') setTimeout(() => { if (el.innerHTML.indexOf(text) >= 0) el.innerHTML = ''; }, 5000);
+}
+
+/* ---------------- 字段列表 ---------------- */
+function buildFieldList() {
+  const box = $('#fieldList');
+  box.innerHTML = '';
+  WATERMARK.FIELDS.forEach(f => {
+    const row = document.createElement('div');
+    row.className = 'fieldrow';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.className = 'on';
+    cb.checked = !!state.settings.fields[f.key];
+    cb.onchange = () => {
+      state.settings.fields[f.key] = cb.checked ? 1 : 0;
+      state.settings.fields = Object.assign({}, state.settings.fields);
+      row.classList.toggle('checked', cb.checked);
+      if (f.key === 'custom') $('#customValueWrap').classList.toggle('hidden', !cb.checked);
+      saveSettings(); schedulePreview();
+    };
+    const box2 = document.createElement('div');
+    const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = f.label;
+    const sm = document.createElement('div'); sm.className = 'sm';
+    sm.textContent = { lon: 'EXIF GPSLongitude', lat: 'EXIF GPSLatitude', coord: 'WGS84/GCJ02/BD09', addr: '逆地理编码结果', time: '按时间来源与格式生成', model: 'Make + Model', make: 'Make', lens: 'LensModel', fnumber: 'FNumber', shutter: 'ExposureTime', iso: 'ISO', focal: 'FocalLength', alt: 'GPSAltitude', gpsTime: 'GPS 时间戳', size: '图片宽高', software: 'Software', custom: '手动输入内容' }[f.key];
+    box2.appendChild(nm); box2.appendChild(sm);
+    row.appendChild(cb); row.appendChild(box2);
+    if (f.key === 'custom') {
+      const wrap = document.createElement('div');
+      wrap.id = 'customValueWrap';
+      wrap.className = state.settings.fields.custom ? '' : 'hidden';
+      const inp = document.createElement('input');
+      inp.type = 'text'; inp.value = state.settings.customValue || ''; inp.placeholder = '自定义一行文字';
+      inp.oninput = () => { state.settings.customValue = inp.value; saveSettings(); schedulePreview(); };
+      wrap.appendChild(inp);
+      row.appendChild(wrap);
+    }
+    box.appendChild(row);
+  });
+  const on = WATERMARK.FIELDS.filter(f => state.settings.fields[f.key]).length;
+  $('#fieldCount').textContent = '已选 ' + on + ' 项';
+}
+
+/* ---------------- 控件绑定 ---------------- */
+function bindRange(id, key, after) {
+  const el = $(id);
+  el.value = state.settings[key];
+  el.oninput = () => {
+    state.settings[key] = parseFloat(el.value);
+    if (after) after();
+    saveSettings(); schedulePreview();
+  };
+}
+function bindCheck(id, key, after) {
+  const el = $(id);
+  el.checked = !!state.settings[key];
+  el.onchange = () => { state.settings[key] = el.checked; if (after) after(); saveSettings(); schedulePreview(); };
+}
+function bindText(id, key, after) {
+  const el = $(id);
+  el.value = state.settings[key] === undefined ? '' : state.settings[key];
+  el.oninput = () => { state.settings[key] = el.value; if (after) after(); saveSettings(); schedulePreview(); };
+}
+function bindSelect(id, key, after) {
+  const el = $(id);
+  el.value = state.settings[key];
+  el.onchange = () => { state.settings[key] = el.value; if (after) after(); saveSettings(); schedulePreview(); };
+}
+function bindColor(id, key, swatchBox) {
+  const el = $(id);
+  el.value = state.settings[key];
+  el.oninput = () => { state.settings[key] = el.value; saveSettings(); schedulePreview(); };
+}
+function buildSwatches(boxId, key) {
+  const box = $(boxId);
+  const colors = ['#3072EE', '#1FA463', '#E8453C', '#F0932B', '#8E44AD', '#00A0B0', '#101418', '#FFFFFF', '#2F3542'];
+  box.innerHTML = '';
+  colors.forEach(c => {
+    const b = document.createElement('div');
+    b.className = 'sw' + (state.settings[key].toLowerCase() === c.toLowerCase() ? ' on' : '');
+    b.style.background = c;
+    b.onclick = () => {
+      state.settings[key] = c;
+      $('#' + (boxId === 'accentSwatches' ? 'accentColor' : boxId === 'titleSwatches' ? 'titleColor' : 'panelColor')).value = c;
+      saveSettings(); schedulePreview();
+      buildSwatches(boxId, key);
+    };
+    box.appendChild(b);
+  });
+}
+/* 按钮组：必须真正写回 state.settings[key]，而不是只改高亮 */
+function pillGroup(sel, attr, key, after) {
+  const box = $(sel);
+  if (!box) return;
+  const sync = () => box.querySelectorAll('.pill')
+    .forEach(x => x.classList.toggle('on', String(state.settings[key]) === x.dataset[attr]));
+  box.querySelectorAll('.pill').forEach(p => {
+    p.onclick = () => {
+      state.settings[key] = p.dataset[attr];
+      sync();
+      if (after) after();
+      saveSettings(); schedulePreview();
+    };
+  });
+  sync();
+}
+/* 图标为「纯色条」时，色条内图形开关无意义 → 置灰禁用 */
+function updateIconUI() {
+  const none = (state.settings.icon || 'none') === 'none';
+  const cb = $('#iconInBar');
+  if (cb) { cb.disabled = none; cb.parentElement.style.opacity = none ? '.45' : '1'; }
+}
+function updateProviderUI() {
+  const p = state.settings.provider;
+  const names = { baidu: '百度地图 浏览器端 AK', amap: '高德地图 Web 服务 Key', tencent: '腾讯地图 WebServiceAPI Key', tianditu: '天地图 tk' };
+  $('#keyLabel').textContent = names[p] || 'API Key';
+  $('#apiKey').value = state.keys[p] || '';
+  const noKey = p === 'none';
+  ['#apiKey', '#btnTestKey', '#btnSaveKey'].forEach(sel => { const el = $(sel); if (el) el.disabled = noKey; });
+  $('#apiKey').placeholder = noKey ? '已选择「不解析」，地址需手动填写' : '填写你的 API Key（保存在本机浏览器）';
+  $('#keyHint').innerHTML = p === 'none' ? '已选择「不解析」，地址需手动填写。'
+    : p === 'baidu' ? '百度逆地理编码不支持跨域，网页版改用「浏览器端 AK」加载百度 JS API 解析；请把 Referer 白名单设为 * 或你的域名。'
+      : p === 'tianditu' ? '天地图 → 控制台 → 创建应用 → 服务类型选「服务端」→ 复制 tk（逆地理编码免费额度充足）。'
+      : p === 'amap' ? '高德开放平台 → Web服务 → 创建 Key（需勾选「逆地理编码」）。'
+        : '腾讯位置服务 → WebServiceAPI → 创建 key（勾选「地址解析」）。';
+}
+function updateTplTag() {
+  const names = { reference: '参考模板', simple: '简洁面板', bar: '单行角标' };
+  $('#tplTag').textContent = names[state.settings.template] || '';
+  /* 副标题仅在「简洁面板」中绘制，其他模板置灰以免误以为生效 */
+  const sub = $('#subtitleText');
+  if (sub) {
+    const useSub = state.settings.template === 'simple';
+    sub.disabled = !useSub;
+    sub.placeholder = useSub ? '如：现场验货' : '仅「简洁面板」模板使用副标题';
+    sub.parentElement && (sub.style.opacity = useSub ? '1' : '.5');
+  }
+}
+/* 导出为 PNG 时，JPEG 质量滑块无效 → 置灰 */
+function updateExportUI() {
+  const q = $('#jpegQuality'), lab = $('#jpegQualityLabel');
+  const isJpeg = state.settings.exportFormat === 'jpeg';
+  if (q) { q.disabled = !isJpeg; q.style.opacity = isJpeg ? '1' : '.45'; }
+  if (lab) lab.style.opacity = isJpeg ? '1' : '.45';
+}
+
+/* ---------------- 初始化 ---------------- */
+/* 视口变化（地址栏收起、App 内置浏览器工具条、旋转屏幕）时重算画布尺寸 */
+function bindViewportEvents() {
+  if (!window.addEventListener) return;
+  const sheetEl = document.getElementById('sheetCard'), stageEl = document.getElementById('stageCard');
+  [sheetEl, stageEl].forEach(el => {
+    if (!el) return;
+    el.addEventListener('transitionend', () => refitSoon());
+  });
+  window.addEventListener('resize', syncViewport);
+  window.addEventListener('orientationchange', function () { setTimeout(syncViewport, 300); });
+  if (window.visualViewport && window.visualViewport.addEventListener) {
+    window.visualViewport.addEventListener('resize', syncViewport);
+    window.visualViewport.addEventListener('scroll', syncViewport);
+  }
+}
+function init() {
+  bindViewportEvents();
+  loadSettings();
+  bindMapKeys();
+  $('#titleText').value = state.settings.titleText;
+  $('#subtitleText').value = state.settings.subtitleText;
+  $('#iconInBar').checked = state.settings.iconInBar;
+  bindRange('#titleScale', 'titleScale'); bindRange('#bodyScale', 'bodyScale');
+  bindRange('#lineHeight', 'lineHeight'); bindRange('#radiusScale', 'radiusScale');
+  bindRange('#padScale', 'padScale'); bindRange('#gapScale', 'gapScale');
+  bindRange('#panelWidth', 'panelWidth'); bindRange('#marginScale', 'marginScale');
+  bindRange('#wmScale', 'watermarkScale');
+  /* 标题字号：滑块 + 实时数值 + 快捷档位 */
+  const titleRange = $('#titleScale'), titleVal = $('#titleScaleVal');
+  const showTitleVal = () => {
+    if (!titleVal) return;
+    const v = state.settings.titleScale;
+    const px = currentPhoto() ? Math.round((currentPhoto().width || 0) * v / 100 * (state.settings.watermarkScale || 100) / 100) : 0;
+    titleVal.textContent = v.toFixed(1) + '%' + (px ? '（约 ' + px + 'px）' : '');
+  };
+  bindRange('#titleScale', 'titleScale', showTitleVal);
+  const chipRange = $('#chipScale'), chipVal = $('#chipScaleVal');
+  const showChipVal = () => {
+    if (!chipVal) return;
+    const wm = (state.settings.watermarkScale || 100) / 100;
+    const chipPct = state.settings.chipScale;
+    const ratio = Math.min(1, (state.settings.titleScale / chipPct) / 0.87);
+    chipVal.textContent = chipPct.toFixed(1) + '%　文字约占白底 ' + Math.round(ratio * 100) + '%';
+  };
+  bindRange('#chipScale', 'chipScale', showChipVal);
+  showChipVal();
+  const setTitleScale = (v) => {
+    state.settings.titleScale = v;
+    if (titleRange) titleRange.value = v;
+    showTitleVal(); saveSettings(); schedulePreview();
+  };
+  document.querySelectorAll('[data-ts]').forEach(b => b.onclick = () => setTitleScale(parseFloat(b.dataset.ts)));
+  showTitleVal();
+  bindRange('#panelAlpha', 'panelAlpha'); bindRange('#jpegQuality', 'jpegQuality');
+  bindRange('#coordDigits', 'coordDigits');
+  bindCheck('#iconInBar', 'iconInBar'); bindCheck('#labelAccent', 'labelAccent');
+  bindCheck('#shadow', 'shadow'); bindCheck('#labelShadow', 'labelShadow');
+  bindCheck('#fixOrientation', 'fixOrientation'); bindCheck('#keepExif', 'keepExif');
+  bindCheck('#autoAddTime', 'autoAddTime'); bindCheck('#autoGeo', 'autoGeo'); bindCheck('#snapEdge', 'snapEdge');
+  bindText('#titleText', 'titleText'); bindText('#subtitleText', 'subtitleText');
+  bindText('#manualAddr', 'manualAddr', () => { state.photos.forEach(p => resolveAddress(p)); });
+  bindText('#manualLon', 'manualLon'); bindText('#manualLat', 'manualLat');
+  const cx = $('#customX'), cy = $('#customY');
+  if (cx) {
+    cx.value = state.settings.customX; cy.value = state.settings.customY;
+    cx.oninput = () => { state.settings.customX = parseFloat(cx.value) || 0; state.settings.position = 'custom'; updatePosGrid(); syncCustomInputs(); saveSettings(); schedulePreview(); };
+    cy.oninput = () => { state.settings.customY = parseFloat(cy.value) || 0; state.settings.position = 'custom'; updatePosGrid(); syncCustomInputs(); saveSettings(); schedulePreview(); };
+  }
+  bindSelect('#timeFormat', 'timeFormat'); bindSelect('#timeSource', 'timeSource');
+  bindSelect('#coordSystem', 'coordSystem', autoRefreshAddress); bindSelect('#exportFormat', 'exportFormat', updateExportUI);
+  bindSelect('#exportSize', 'exportSize');
+  updateExportUI();
+  bindColor('#accentColor', 'accentColor'); bindColor('#titleColor', 'titleColor');
+  bindColor('#panelColor', 'panelColor'); bindColor('#textColor', 'textColor'); bindColor('#labelBg', 'labelBg');
+  bindRange('#labelBgAlpha', 'labelBgAlpha');
+  buildSwatches('#accentSwatches', 'accentColor');
+  buildSwatches('#titleSwatches', 'titleColor');
+  buildFieldList();
+
+  pillGroup('#tplPills', 'tpl', 'template', updateTplTag);
+  pillGroup('#iconPills', 'icon', 'icon', updateIconUI);
+  $$('#posGrid .pos').forEach(b => b.onclick = () => {
+    state.settings.position = b.dataset.pos;
+    updatePosGrid(); syncCustomInputs(); updateIconUI(); updateTplTag(); saveSettings(); schedulePreview();
+  });
+  updatePosGrid(); syncCustomInputs();
+  pillGroup('#providerPills', 'provider', 'provider', function () { updateProviderUI(); autoRefreshAddress(); });
+  updateProviderUI(); updateTplTag();
+
+  /* Tab 切换 */
+  $$('.tab').forEach(t => t.onclick = () => {
+    $$('.tab').forEach(x => x.classList.toggle('on', x === t));
+    $$('.tabpane').forEach(p => p.classList.toggle('hidden', p.id !== t.dataset.tab));
+  });
+
+  /* 导入 */
+  const drop = $('#drop'), input = $('#fileInput');
+  drop.onclick = () => input.click();
+  input.onchange = () => { handleFiles(input.files); input.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hot'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hot'); }));
+  drop.addEventListener('drop', e => { if (e.dataTransfer && e.dataTransfer.files) handleFiles(e.dataTransfer.files); });
+  document.addEventListener('paste', e => { if (e.clipboardData && e.clipboardData.files.length) handleFiles(e.clipboardData.files); });
+
+  $('#btnClear').onclick = () => { state.photos = []; state.currentId = null; renderStrip(); renderPreview(); };
+  $('#btnReprocess').onclick = () => resolveAllAddresses();
+  /* 导出：先按设定尺寸直出；尺寸超出手机上限或失败时，弹出等比例缩小选项 */
+  const needDialog = (p) => {
+    const srcLong = Math.max(p.width || 0, p.height || 0);
+    const want = parseInt(state.settings.exportSize, 10) || 0;
+    return srcLong > (want || 4096);
+  };
+  $('#btnExport').onclick = async () => {
+    const p = currentPhoto(); if (!p) { toast('#mapMsg', 'warn', '请先导入照片'); return; }
+    const fmt = state.settings.exportFormat || 'jpeg';
+    openExportDialog(fmt);   /* 单张导出始终先让用户选尺寸，避免又黑又不知道为什么 */
+  };
+  $('#btnSavePng').onclick = async () => {
+    const p = currentPhoto(); if (!p) return;
+    openExportDialog('png');
+  };
+  if ($('#btnQuickSave')) $('#btnQuickSave').onclick = () => { quickSave(); };
+  if ($('#navPrev')) $('#navPrev').onclick = (e) => { e.stopPropagation(); goPhoto(-1); };
+  if ($('#navNext')) $('#navNext').onclick = (e) => { e.stopPropagation(); goPhoto(1); };
+  if ($('#saveClose')) $('#saveClose').onclick = () => { $('#saveMask').classList.remove('on'); };
+  if ($('#saveMask')) $('#saveMask').onclick = (ev) => { if (ev.target.id === 'saveMask') $('#saveMask').classList.remove('on'); };
+  if ($('#expClose')) $('#expClose').onclick = closeExportDialog;
+  if ($('#expPng')) $('#expPng').onclick = () => openExportDialog(expFormat === 'png' ? 'jpeg' : 'png');
+  if ($('#expExif')) $('#expExif').onchange = () => {
+    state.settings.keepExif = $('#expExif').checked; saveSettings();
+    if ($('#keepExif')) $('#keepExif').checked = state.settings.keepExif;
+  };
+  if ($('#expModal')) $('#expModal').onclick = (ev) => { if (ev.target.id === 'expModal') closeExportDialog(); };
+  $('#btnExportAll').onclick = async () => {
+    if (!state.photos.length) { toast('#mapMsg', 'warn', '请先导入照片'); return; }
+    const btn = $('#btnExportAll'); btn.disabled = true;
+    const res = await batchExport(state.photos.slice(), btn);
+    btn.innerHTML = '批量导出全部'; btn.disabled = false;
+    const fails = res.filter(r => !r.ok).map(r => r.photo);
+    showBatchResult(res, fails.length ? async () => {
+      btn.disabled = true;
+      const r2 = await batchExport(fails, btn);
+      btn.innerHTML = '批量导出全部'; btn.disabled = false;
+      showBatchResult(r2, null);
+    } : null);
+  };
+  /* 底部设置面板：菜单在下面板，选中的设置项在同一个面板里切换，画布始终留在上面 */
+  (function () {
+    const sheet = $('#sheetCard'), menu = $('#drawerMenu'), viewBox = $('#drawerView');
+    if (!sheet) return;
+    const title = $('#drawerTitle');
+    const PANES = ['tpl', 'content', 'style', 'map'];
+    const TALL = ['vImport', 'vExport', 'vAbout'];
+
+    const setSheetH = (vh) => {
+      const sheet2 = document.getElementById('sheetCard');
+      if (sheet2) sheet2.classList.toggle('peek', vh <= 5);
+      layoutStage();
+      refitSoon();
+    };
+    const applySize = (id) => {
+      sheet.classList.remove('tall', 'peek');
+      const tall = TALL.includes(id);
+      if (tall) sheet.classList.add('tall');
+      setSheetH(tall ? 88 : SHEET_PCT);
+      layoutStage();
+      document.body.classList.toggle('liveOn', PANES.includes(id));
+      if ($('#sheetPeek')) $('#sheetPeek').textContent = '▾';
+      refitSoon();
+      try { updateLiveInfo(); } catch (e) { }
+    };
+    const hideAll = () => {
+      document.querySelectorAll('.tabpane').forEach(p => { p.classList.remove('active'); p.classList.add('hidden'); });
+      document.querySelectorAll('#drawerView .dView').forEach(v => v.classList.remove('active'));
+    };
+    const showMenu = () => {
+      sheet.classList.remove('viewing', 'tall');
+      hideAll();
+      if (title) title.textContent = '菜单';
+      applySize('menu');
+    };
+    const openSheet = () => {
+      sheet.classList.add('open');
+      document.body.classList.add('sheetOpen');
+      showMenu();
+      layoutStage();
+      refitSoon();
+    };
+    const closeSheet = () => {
+      sheet.classList.remove('open', 'peek', 'tall');
+      document.body.classList.remove('sheetOpen', 'liveOn');
+      document.body.style.setProperty('--sheetH', '0px');
+      layoutStage();
+      refitSoon();
+    };
+    const showView = (id) => {
+      const target = document.getElementById(id);
+      if (!target) return;
+      const isPane = target.classList.contains('tabpane');
+      hideAll();
+      sheet.classList.add('viewing');
+      target.classList.add('active');
+      target.classList.remove('hidden');
+      const item = document.querySelector('.dItem[data-view="' + id + '"]');
+      if (title) title.textContent = item ? item.querySelector('b').textContent : '菜单';
+      applySize(id);
+      const sc = isPane ? target : viewBox;
+      if (sc) sc.scrollTop = 0;
+      if (!sheet.classList.contains('open')) { sheet.classList.add('open'); document.body.classList.add('sheetOpen'); }
+    };
+    /* ---- 抓手：上下拖动改面板高度，画布同时按比例实时缩放 ---- */
+    const grip = document.getElementById('sheetGrip');
+    if (grip) {
+      let dragging = false, startY = 0, startH = 0;
+      const applyPx = (h) => {
+        const v = stageHeightPx();
+        const maxH = Math.round(v.h * 0.90), minH = 96;
+        const sh = Math.max(minH, Math.min(maxH, Math.round(h)));
+        sheet.style.height = sh + 'px';
+        sheet.style.maxHeight = sh + 'px';
+        document.body.style.setProperty('--sheetH', sh + 'px');
+        const stage = document.getElementById('stageCard');
+        if (stage) stage.style.height = Math.max(80, v.h - sh) + 'px';
+        const c = document.querySelector('#preview canvas');
+        if (c && c.width) fitPreview(c);   /* 实时重排画布，拖动时不跑偏 */
+      };
+      const onDown = (e) => {
+        if (!sheet.classList.contains('open')) return;
+        dragging = true; startY = e.clientY;
+        startH = sheet.getBoundingClientRect().height;
+        sheet.classList.remove('peek');
+        document.body.classList.add('resizing');
+        try { grip.setPointerCapture(e.pointerId); } catch (err) { }
+        e.preventDefault();
+      };
+      const onMove = (e) => {
+        if (!dragging) return;
+        applyPx(startH + (startY - e.clientY));
+        e.preventDefault();
+      };
+      const onUp = () => {
+        if (!dragging) return;
+        dragging = false;
+        document.body.classList.remove('resizing');
+        const v = stageHeightPx();
+        const h = sheet.getBoundingClientRect().height;
+        SHEET_PCT = Math.max(10, Math.min(88, Math.round(h / v.h * 100)));
+        try { localStorage.setItem('wm-sheet-pct', String(SHEET_PCT)); } catch (err) { }
+        if (SHEET_PCT >= 56) sheet.classList.add('tall'); else sheet.classList.remove('tall');
+        refitSoon();
+      };
+      grip.addEventListener('pointerdown', onDown);
+      grip.addEventListener('pointermove', onMove);
+      grip.addEventListener('pointerup', onUp);
+      grip.addEventListener('pointercancel', onUp);
+    }
+    if ($('#btnMenu')) $('#btnMenu').onclick = openSheet;
+    if ($('#drawerClose')) $('#drawerClose').onclick = closeSheet;
+    if ($('#sheetPeek')) $('#sheetPeek').onclick = () => {
+      const on = sheet.classList.toggle('peek');
+      if (on) setSheetH(3.2);
+      else setSheetH(sheet.classList.contains('tall') ? 88 : 58);
+      $('#sheetPeek').textContent = on ? '▴' : '▾';
+      refitSoon();
+    };
+    document.querySelectorAll('.dItem').forEach(b => b.onclick = () => showView(b.dataset.view));
+    document.querySelectorAll('#drawerView [data-back]').forEach(b => b.onclick = showMenu);
+    window.addEventListener('resize', () => {
+      if (!document.body.classList.contains('sheetOpen') || sheet.classList.contains('peek')) return;
+      setSheetH(sheet.classList.contains('tall') ? 88 : 58);
+    });
+    window.__openDrawer = openSheet;
+    window.__closeDrawer = closeSheet;
+    window.__closeImport = closeSheet;
+    window.__showView = showView;
+  })();
+
+  /* 位置微调按钮 */
+  $$('.nudge [data-nudge]').forEach(b => {
+    b.onclick = () => {
+      const v = b.dataset.nudge;
+      if (v === 'reset') {
+        state.settings.position = 'bl'; state.settings.customX = 0; state.settings.customY = 100;
+      } else {
+        const d = v.split(',').map(Number);
+        /* 从预设九宫格第一次微调时，先按当前实际位置换算成百分比，避免跳回 (0,100) */
+        const c = $('#preview canvas');
+        if (state.settings.position !== 'custom' && c && c._wmLayout && c.width) {
+          state.settings.customX = +(c._wmLayout.x / c.width * 100).toFixed(2);
+          state.settings.customY = +(c._wmLayout.y / c.height * 100).toFixed(2);
+        }
+        state.settings.position = 'custom';
+        state.settings.customX = clamp((Number(state.settings.customX) || 0) + d[0] * 0.5, 0, 100);
+        state.settings.customY = clamp((Number(state.settings.customY) || 0) + d[1] * 0.5, 0, 100);
+      }
+      updatePosGrid(); syncCustomInputs(); saveSettings(); schedulePreview();
+    };
+  });
+
+  $('#btnAddField').onclick = () => {
+    state.settings.fields.custom = 1;
+    buildFieldList();
+    const inp = $('#customValueWrap input'); if (inp) inp.focus();
+  };
+  $('#showAllFields').onchange = (e) => {
+    const on = e.target.checked ? 1 : 0;
+    WATERMARK.FIELDS.forEach(f => state.settings.fields[f.key] = on);
+    buildFieldList(); saveSettings(); schedulePreview();
+  };
+  $('#btnResetManual').onclick = () => {
+    state.settings.manualAddr = ''; state.settings.manualLon = ''; state.settings.manualLat = '';
+    $('#manualAddr').value = ''; $('#manualLon').value = ''; $('#manualLat').value = '';
+    saveSettings(); schedulePreview();
+  };
+  renderStrip();
+  renderPreview();
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+</script>
+
+<script>
+/* ================= 桌面版交互层（不改动移动端逻辑） ================= */
+(function () {
+  /* ---------- 桌面端导出：走系统「另存为」或「选择文件夹」，不再用手机那套弹窗 ---------- */
+  const DBASE = (() => {
+    const ex = document.getElementById('toastD') || null;
+    return ex;
+  })();
+  function dtoast(msg, kind) {
+    let t = document.getElementById('dtoast');
+    if (!t) { t = document.createElement('div'); t.id = 'dtoast'; document.body.appendChild(t); }
+    t.textContent = msg;
+    t.className = 'dtoast show' + (kind ? ' ' + kind : '');
+    clearTimeout(t._tm);
+    t._tm = setTimeout(() => { t.className = 'dtoast'; }, 3600);
+  }
+  function curPhoto() {
+    try { return currentPhoto(); } catch (e) { return null; }
+  }
+  async function renderAt(photo, format) {
+    const st = state.settings;
+    const want = parseInt(st.exportSize, 10) || 2560;
+    const fmt = format === 'png' ? 'png' : 'jpeg';
+    let r = null;
+    try { r = await exportAtSize(photo, fmt, want, st.keepExif !== false, !!photo.longShot); } catch (e) { }
+    if (!r || !r.blob) {
+      try { r = await exportAtSize(photo, fmt, Math.min(1600, want), false, !!photo.longShot); } catch (e) { }
+    }
+    return r;
+  }
+  async function desktopExportOne(format) {
+    const p = curPhoto();
+    if (!p || !p.bmp) { dtoast('请先导入照片', 'err'); return; }
+    const ext = format === 'png' ? 'png' : 'jpg';
+    const name = p.name.replace(/\.[^.]+$/, '') + '_水印.' + ext;
+    const mime = format === 'png' ? 'image/png' : 'image/jpeg';
+    let handle = null, pickerOk = false;
+    if (typeof window.showSaveFilePicker === 'function') {
+      try {
+        handle = await window.showSaveFilePicker({
+          suggestedName: name,
+          types: [{ description: format === 'png' ? 'PNG 图片' : 'JPEG 图片', accept: { [mime]: ['.' + ext] } }]
+        });
+        pickerOk = true;
+      } catch (e) {
+        if (e && e.name === 'AbortError') { dtoast('已取消保存'); return; }
+        handle = null;   /* 浏览器不支持/被策略拦住 → 退回浏览器下载 */
+      }
+    }
+    dtoast('正在生成…');
+    const r = await renderAt(p, format);
+    if (!r || !r.blob) { dtoast('生成失败：' + ((r && r.err) || '内存不足'), 'err'); return; }
+    if (handle) {
+      try {
+        const w = await handle.createWritable();
+        await w.write(r.blob);
+        await w.close();
+        dtoast('已保存 ' + handle.name + '（' + r.w + ' × ' + r.h + '）');
+      } catch (e) {
+        dtoast('写入文件失败：' + ((e && e.message) || e), 'err');
+      }
+      return;
+    }
+    try {
+      const url = URL.createObjectURL(r.blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = name; a.style.display = 'none';
+      document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1500);
+      dtoast(pickerOk ? ('已保存 ' + name) : ('已下载 ' + name + '：当前浏览器不支持「另存为」，已放进下载目录'), '');
+    } catch (e) { dtoast('保存失败：' + ((e && e.message) || e), 'err'); }
+  }
+  async function desktopExportAll() {
+    const list = (state && state.photos) ? state.photos.slice() : [];
+    if (!list.length) { dtoast('还没有照片', 'err'); return; }
+    if (list.length === 1) { return desktopExportOne(state.settings.exportFormat === 'png' ? 'png' : 'jpeg'); }
+    let dir = null;
+    if (typeof window.showDirectoryPicker === 'function') {
+      try { dir = await window.showDirectoryPicker({ mode: 'readwrite' }); }
+      catch (e) {
+        if (e && e.name === 'AbortError') { dtoast('已取消'); return; }
+        dir = null;
+      }
+    }
+    const fmt = state.settings.exportFormat === 'png' ? 'png' : 'jpeg';
+    const ext = fmt === 'png' ? 'png' : 'jpg';
+    let ok = 0, fail = 0;
+    for (let i = 0; i < list.length; i++) {
+      dtoast('导出中 ' + (i + 1) + ' / ' + list.length + ' …');
+      const p = list[i];
+      const r = await renderAt(p, fmt);
+      if (!r || !r.blob) { fail++; continue; }
+      const name = p.name.replace(/\.[^.]+$/, '') + '_水印.' + ext;
+      try {
+        if (dir) {
+          const fh = await dir.getFileHandle(name, { create: true });
+          const w = await fh.createWritable();
+          await w.write(r.blob);
+          await w.close();
+        } else {
+          const s2 = await saveBlob(r.blob, name);
+          if (!s2 || !s2.ok) throw new Error((s2 && s2.err) || '写入失败');
+        }
+        ok++;
+      } catch (e) { fail++; }
+      await new Promise(res => setTimeout(res, 120));
+    }
+    dtoast((dir ? '已保存 ' : '已下载 ') + ok + ' 张' + (fail ? ('，失败 ' + fail + ' 张') : '') + (dir ? (' 到「' + dir.name + '」') : ''), fail ? 'err' : '');
+  }
+  /* 手机那套「导出尺寸弹窗 / 保存结果弹窗」在桌面上不用：统一改走选择位置 */
+  try { window.openExportDialog = function (format) { desktopExportOne(format === 'png' ? 'png' : 'jpeg'); }; } catch (e) { }
+  try { window.quickSave = function () { desktopExportOne('jpeg'); }; } catch (e) { }
+
+  function boot() {
+  document.body.classList.add('desktop');
+
+  /* 侧栏常开，默认进「导入」 */
+  if (window.__openDrawer) window.__openDrawer();
+
+  const TABS = [
+    ['vImport', '导入'], ['tpl', '模板'], ['content', '内容'],
+    ['style', '样式'], ['map', '地图'], ['vExport', '导出'], ['vAbout', '关于']
+  ];
+  const bar = document.createElement('div');
+  bar.className = 'dtabs';
+  const btns = {};
+  TABS.forEach(([id, label]) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    b.onclick = () => { if (window.__showView) window.__showView(id); mark(id); };
+    bar.appendChild(b);
+    btns[id] = b;
+  });
+  function mark(id) {
+    Object.keys(btns).forEach(k => btns[k].classList.toggle('on', k === id));
+  }
+  const head = document.querySelector('#sheetCard .dHead');
+  if (head && head.parentNode) head.parentNode.insertBefore(bar, head.nextSibling);
+
+  const startTab = 'vImport';
+  if (window.__showView) window.__showView(startTab);
+  mark(startTab);
+
+  /* 顶部工具条：导入 / 保存 / 导出选项 */
+  const bar2 = document.querySelector('#stageCard .topBar');
+  if (bar2) {
+    const tools = document.createElement('div');
+    tools.className = 'dtools';
+    const mk = (label, cls, fn) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'db' + (cls ? ' ' + cls : '');
+      b.textContent = label;
+      b.onclick = fn;
+      tools.appendChild(b);
+    };
+    mk('导入照片', '', () => { const i = document.getElementById('fileInput'); if (i) i.click(); });
+    mk('保存图片', 'primary', () => desktopExportOne('jpeg'));
+    mk('另存 PNG', '', () => desktopExportOne('png'));
+    mk('批量保存', '', () => desktopExportAll());
+    bar2.appendChild(tools);
+  }
+
+  /* 面板里那个「批量导出全部」在桌面上也改成选文件夹 */
+  const eaBtn = document.getElementById('btnExportAll');
+  if (eaBtn) eaBtn.onclick = () => desktopExportAll();
+
+  /* 点空白画布 → 选照片 */
+  const pv = document.getElementById('preview');
+  if (pv) {
+    pv.addEventListener('click', () => {
+      if (!pv.querySelector('canvas')) { const i = document.getElementById('fileInput'); if (i) i.click(); }
+    });
+  }
+
+  /* 整页拖拽导入 */
+  let dragDepth = 0;
+  document.addEventListener('dragenter', (e) => { e.preventDefault(); dragDepth++; document.body.classList.add('dragging'); });
+  document.addEventListener('dragover', (e) => { e.preventDefault(); });
+  document.addEventListener('dragleave', () => { dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) document.body.classList.remove('dragging'); });
+  document.addEventListener('drop', (e) => {
+    dragDepth = 0;
+    document.body.classList.remove('dragging');
+    const t = e.target;
+    if (t && t.closest && t.closest('#drop')) return;   /* 侧栏里那个区域自己处理 */
+    e.preventDefault();
+    const files = e.dataTransfer && e.dataTransfer.files;
+    if (files && files.length && window.handleFiles) window.handleFiles(files);
+  });
+
+  /* 快捷键 */
+  document.addEventListener('keydown', (e) => {
+    const meta = e.ctrlKey || e.metaKey;
+    const k = (e.key || '').toLowerCase();
+    if (meta && k === 'o') { e.preventDefault(); const i = document.getElementById('fileInput'); if (i) i.click(); }
+    else if (meta && k === 's') { e.preventDefault(); if (window.quickSave) window.quickSave(); }
+    else if (meta && k === 'b') { e.preventDefault(); document.body.classList.toggle('sidebarHidden'); }
+    else if (k === 'escape') {
+      if (window.closeExportDialog) window.closeExportDialog();
+      const m1 = document.getElementById('saveMask'); if (m1) m1.classList.remove('on');
+      const m2 = document.getElementById('expModal'); if (m2) m2.classList.remove('on');
+    }
+  });
+
+  /* ☰ 折叠 / 展开侧栏 */
+  const menuBtn = document.getElementById('btnMenu');
+  if (menuBtn) menuBtn.onclick = () => document.body.classList.toggle('sidebarHidden');
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => setTimeout(boot, 30));
+  } else {
+    boot();
+  }
+})();
+
+</script>
+</body>
+</html>

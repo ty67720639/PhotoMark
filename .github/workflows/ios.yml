@@ -1,0 +1,57 @@
+name: iOS Build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Copy web assets to iOS
+        run: npx cap copy ios
+
+      - name: Build unsigned app
+        run: |
+          cd ios/App
+          xcodebuild \
+            -project App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            -quiet
+
+      - name: Package unsigned IPA
+        run: |
+          cd ios/App
+          APP_PATH=$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name "*.app" | head -1)
+          echo "app: $APP_PATH"
+          rm -rf Payload
+          mkdir -p Payload
+          cp -R "$APP_PATH" Payload/
+          zip -qry PhotoMark-unsigned.ipa Payload
+          ls -lh PhotoMark-unsigned.ipa
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: PhotoMark-unsigned-ipa
+          path: ios/App/PhotoMark-unsigned.ipa
+          retention-days: 30
