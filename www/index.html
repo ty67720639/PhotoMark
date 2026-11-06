@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
 <meta name="color-scheme" content="light">
-<meta name="theme-color" content="#111412">
+<meta name="theme-color" content="#0E3D7A">
 <title>PhotoMark</title>
 <style>
 /* ==========================================================================
@@ -14,10 +14,10 @@
    - 尺寸按 Android dp 习惯：触控区 ≥48px，正文 14px/22px
    ========================================================================== */
 :root{
-  --brand:#2B6B5E;
-  --brand-dark:#1F5147;
-  --brand-soft:#E2F1EC;
-  --brand-soft-2:#CFE8E1;
+  --brand:#1E5FB8;
+  --brand-dark:#164891;
+  --brand-soft:#E3ECFA;
+  --brand-soft-2:#C8D9F5;
   --ink:#171A19;
   --ink-2:#4A524F;
   --ink-3:#78827E;
@@ -57,7 +57,7 @@ main{position:fixed;left:0;right:0;top:0;bottom:0;overflow:hidden}
 .topBar{
   flex:none;display:flex;align-items:center;gap:2px;
   height:calc(56px + env(safe-area-inset-top));
-  padding:env(safe-area-inset-top) 6px 0;background:#111413;
+  padding:env(safe-area-inset-top) 6px 0;background:#0E3D7A;
   border-bottom:1px solid rgba(255,255,255,.07);
 }
 .iconBtn{
@@ -219,7 +219,7 @@ body.liveOn .dLive{display:inline-flex}
 }
 .btn:active{opacity:.85}
 .btn .ico{width:18px;height:18px}
-.btn.filled,.btn.primary{background:var(--brand);color:#fff;box-shadow:0 2px 8px rgba(43,107,94,.24)}
+.btn.filled,.btn.primary{background:var(--brand);color:#fff;box-shadow:0 2px 8px rgba(30,95,184,.24)}
 .btn.tonal{background:var(--brand-soft);color:var(--brand-dark)}
 .btn.outlined{background:var(--card);color:var(--ink);border:1px solid var(--line)}
 .btn.text,.btn.ghost{background:transparent;color:var(--brand);padding:0 10px}
@@ -352,7 +352,7 @@ details>summary .tag:empty{display:none}
   position:fixed;right:14px;bottom:112px;
   display:inline-flex;align-items:center;gap:8px;height:50px;padding:0 20px;
   border-radius:999px;background:var(--brand);color:#fff;
-  font-size:14px;font-weight:600;box-shadow:0 6px 18px rgba(43,107,94,.34);
+  font-size:14px;font-weight:600;box-shadow:0 6px 18px rgba(30,95,184,.34);
   z-index:28;transition:transform .12s,opacity .15s;
 }
 body.sheetOpen .md-fab{display:none}
@@ -828,7 +828,7 @@ body.sheetOpen .md-fab{display:none}
               <div>
                 <div class="md-field">
                   <div class="md-outlined">
-                    <input type="color" id="accentColor" value="#2B6B5E">
+                    <input type="color" id="accentColor" value="#1E5FB8">
                     <span class="md-label">主题色</span>
                   </div>
                 </div>
@@ -837,7 +837,7 @@ body.sheetOpen .md-fab{display:none}
               <div>
                 <div class="md-field">
                   <div class="md-outlined">
-                    <input type="color" id="titleColor" value="#2B6B5E">
+                    <input type="color" id="titleColor" value="#1E5FB8">
                     <span class="md-label">标题文字色</span>
                   </div>
                 </div>
@@ -2350,7 +2350,7 @@ const DEFAULT_SETTINGS = {
   template: 'reference', titleText: '现场拍照', subtitleText: '', icon: 'none', iconInBar: false,
   titleScale: 2.8, chipScale: 6.2, bodyScale: 1.8, lineHeight: 1.55, radiusScale: 18, padScale: 42, gapScale: 26,
   panelWidth: 0, marginScale: 4, position: 'bl', watermarkScale: 100, customX: 0, customY: 100, snapEdge: true,
-  accentColor: '#3072EE', titleColor: '#3072EE', panelColor: '#101418', panelAlpha: 55,
+  accentColor: '#1E5FB8', titleColor: '#1E5FB8', panelColor: '#101418', panelAlpha: 55,
   labelBg: '#FFFFFF', labelBgAlpha: 100,
   textColor: '#FFFFFF', labelAccent: false, shadow: true, labelShadow: false,
   fields: { lon: 1, lat: 1, coord: 1, addr: 1, time: 1, model: 0, make: 0, lens: 0, fnumber: 0, shutter: 0, iso: 0, focal: 0, alt: 0, gpsTime: 0, size: 0, software: 0, custom: 0 },
@@ -3609,9 +3609,9 @@ function buildSwatches(boxId, key) {
 function pillGroup(sel, attr, key, after) {
   const box = $(sel);
   if (!box) return;
-  const sync = () => box.querySelectorAll('.pill')
+  const sync = () => box.querySelectorAll('.md-chip, .pill')
     .forEach(x => x.classList.toggle('on', String(state.settings[key]) === x.dataset[attr]));
-  box.querySelectorAll('.pill').forEach(p => {
+  box.querySelectorAll('.md-chip, .pill').forEach(p => {
     p.onclick = () => {
       state.settings[key] = p.dataset[attr];
       sync();
