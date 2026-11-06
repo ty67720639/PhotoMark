@@ -108,7 +108,7 @@ body.sheetOpen .toastBox{bottom:14px}
   border-top-left-radius:var(--r-xl);border-top-right-radius:var(--r-xl);
   box-shadow:0 -6px 24px rgba(18,24,21,.16);
   padding-bottom:env(safe-area-inset-bottom);
-  z-index:30;
+  z-index:30;isolation:isolate;
   transition:height .24s cubic-bezier(.2,.8,.3,1);
 }
 /* 收起状态：只留一条可点击的菜单条（必须强制高度，避免收起后残留展开时的高度） */
@@ -123,8 +123,9 @@ body.sheetOpen .toastBox{bottom:14px}
 #sheetCard:not(.open) .dHead::after{
   content:"点击展开设置";font-size:11px;color:var(--ink-3);margin-left:6px;
 }
-#sheetGrip{flex:none;height:18px;display:flex;align-items:center;justify-content:center;touch-action:none}
+#sheetGrip{position:relative;flex:none;height:22px;display:flex;align-items:center;justify-content:center;touch-action:none;cursor:ns-resize}
 #sheetGrip span{width:36px;height:4px;border-radius:2px;background:#C5CCC8}
+#sheetGrip::before{content:"";position:absolute;left:0;right:0;top:-8px;height:30px}
 
 .dHead{
   flex:none;display:flex;align-items:center;gap:8px;
@@ -150,7 +151,7 @@ body.liveOn .dLive{display:inline-flex}
 .dClose:active{background:var(--line-2)}
 
 /* 菜单列表 */
-#drawerMenu{flex:1;min-height:0;overflow-y:auto;padding:2px 10px 20px}
+#drawerMenu{flex:1;min-height:0;overflow-y:auto;padding:2px 10px 20px;border-top-left-radius:var(--r-xl);border-top-right-radius:var(--r-xl)}
 #sheetCard.viewing #drawerMenu{display:none}
 .dItem{
   width:100%;display:flex;align-items:center;gap:12px;
@@ -170,7 +171,7 @@ body.liveOn .dLive{display:inline-flex}
 .dItem .chevron .ico{width:18px;height:18px}
 
 /* 设置视图 */
-#drawerView{flex:1;min-height:0;overflow-y:auto;padding:0 12px 28px;display:none;-webkit-overflow-scrolling:touch}
+#drawerView{flex:1;min-height:0;overflow-y:auto;padding:0 12px 28px;display:none;-webkit-overflow-scrolling:touch;border-top-left-radius:var(--r-xl);border-top-right-radius:var(--r-xl)}
 #sheetCard.viewing #drawerView{display:block}
 .dView{display:none}
 .dView.active{display:block;animation:fadeUp .18s ease-out}
@@ -252,7 +253,11 @@ body.liveOn .dLive{display:inline-flex}
 .md-field .md-supporting{font-size:11.5px;color:var(--ink-3);margin-top:4px;line-height:17px;padding:0 3px}
 .md-field input[type=color]{padding:20px 6px 6px;height:52px;cursor:pointer}
 .md-field input[type=range]{height:30px;border:none;background:transparent;padding:0}
-input[type=range]{width:100%;accent-color:var(--brand)}
+input[type=range]{width:100%;accent-color:var(--brand);touch-action:none;-webkit-appearance:none;appearance:none;height:30px;background:transparent}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:22px;height:22px;border-radius:50%;background:var(--brand);border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.25);cursor:grab}
+input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:var(--line)}
+input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:var(--brand);border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.25);cursor:grab}
+input[type=range]::-moz-range-track{height:4px;border-radius:2px;background:var(--line)}
 
 /* 可折叠分组 */
 details{border-top:1px solid var(--line-2)}
@@ -1055,8 +1060,11 @@ body.sheetOpen .md-fab{display:none}
             <p style="font:var(--md-sys-typescale-body-medium);color:var(--md-sys-color-on-surface-variant);line-height:24px;margin:0 0 12px">
               仅在解析地址时，会把该照片的经纬度（不含照片本身）发送给你所选的地图服务商以换取文字地址。
             </p>
-            <p style="font:var(--md-sys-typescale-body-medium);color:var(--md-sys-color-on-surface-variant);line-height:24px;margin:0">
+            <p style="font:var(--md-sys-typescale-body-medium);color:var(--md-sys-color-on-surface-variant);line-height:24px;margin:0 0 12px">
               API Key 只保存在本机，不会上传到第三方。
+            </p>
+            <p style="font:var(--md-sys-typescale-body-small);color:var(--md-sys-color-on-surface-variant);line-height:20px;margin:0">
+              PhotoMark · 版本 <span id="aboutVer">2.4</span>
             </p>
           </div>
         </div>
@@ -2344,7 +2352,7 @@ const WATERMARK = (function () {
 })();
 /* ======================= 六、应用状态与界面逻辑 ======================= */
 const SETTINGS_KEY = 'wm-settings-v1', KEYS_KEY = 'wm-apikeys-v1';
-const APP_VER = '2.3';
+const APP_VER = '2.4';
 const DEFAULT_SETTINGS = {
   ver: 5,
   template: 'reference', titleText: '现场拍照', subtitleText: '', icon: 'none', iconInBar: false,
@@ -3681,6 +3689,7 @@ function init() {
   bindViewportEvents();
   loadSettings();
   bindMapKeys();
+  if ($('#aboutVer')) $('#aboutVer').textContent = APP_VER;
   $('#titleText').value = state.settings.titleText;
   $('#subtitleText').value = state.settings.subtitleText;
   $('#iconInBar').checked = state.settings.iconInBar;
@@ -3889,7 +3898,14 @@ function init() {
         if (c && c.width) fitPreview(c);   /* 实时重排画布，拖动时不跑偏 */
       };
       const onDown = (e) => {
-        if (!sheet.classList.contains('open')) return;
+        /* 关闭状态下，上拉也能开盖：先展开到最小可操作高度，再跟随手指 */
+        if (!sheet.classList.contains('open')) {
+          sheet.classList.add('open');
+          document.body.classList.add('sheetOpen');
+          if (sheet.classList.contains('viewing')) { /* 保持当前视图 */ }
+          else { showMenu(); }
+          layoutStage();
+        }
         dragging = true; startY = e.clientY;
         startH = sheet.getBoundingClientRect().height;
         sheet.classList.remove('peek');
@@ -3909,6 +3925,8 @@ function init() {
         const v = stageHeightPx();
         const h = sheet.getBoundingClientRect().height;
         SHEET_PCT = Math.max(10, Math.min(88, Math.round(h / v.h * 100)));
+        /* 拖到接近底部（<18%）则收合面板 */
+        if (SHEET_PCT < 18) { closeSheet(); return; }
         try { localStorage.setItem('wm-sheet-pct', String(SHEET_PCT)); } catch (err) { }
         if (SHEET_PCT >= 56) sheet.classList.add('tall'); else sheet.classList.remove('tall');
         refitSoon();
@@ -3918,6 +3936,13 @@ function init() {
       grip.addEventListener('pointerup', onUp);
       grip.addEventListener('pointercancel', onUp);
     }
+    /* 头部点击：开/关面板（关闭时整条都可点） */
+    const dHead = sheet.querySelector('.dHead');
+    if (dHead) dHead.addEventListener('click', (e) => {
+      const t = e.target;
+      if (t && t.closest && t.closest('button')) return;
+      if (sheet.classList.contains('open')) closeSheet(); else openSheet();
+    });
     if ($('#btnMenu')) $('#btnMenu').onclick = openSheet;
     if ($('#drawerClose')) $('#drawerClose').onclick = closeSheet;
     if ($('#sheetPeek')) $('#sheetPeek').onclick = () => {
